@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* #FFFFFF primary base background */
+    --foreground: 146 34% 15%; /* Deep forest neutral text */
+
+    --card: 0 0% 100%;
+    --card-foreground: 146 34% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 146 34% 15%;
+
+    --primary: 146 34% 27%; /* #2E5E43 rich emerald accent for key drivers & CTAs */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF */
+
+    --secondary: 42 42% 67%; /* #CCB88B warm secondary gold/sand tone */
+    --secondary-foreground: 146 34% 18%;
+
+    --muted: 42 30% 96%;
+    --muted-foreground: 146 15% 42%;
+
+    --accent: 42 42% 67%; /* #CCB88B secondary gold for badges and accents */
+    --accent-foreground: 146 34% 15%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 42 20% 86%;
+    --input: 42 20% 86%;
+    --ring: 146 34% 27%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 146 35% 8%; /* Deep forest night background */
+    --foreground: 0 0% 98%;
+
+    --card: 146 30% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 146 30% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 42 42% 67%; /* #CCB88B luminous gold in dark mode */
+    --primary-foreground: 146 35% 10%;
+
+    --secondary: 146 34% 27%; /* #2E5E43 */
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 146 20% 16%;
+    --muted-foreground: 42 25% 75%;
+
+    --accent: 146 34% 38%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 146 20% 22%;
+    --input: 146 20% 22%;
+    --ring: 42 42% 67%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+  header, nav, section, article, aside, footer, .card, button, input, textarea, select {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-duration: 200ms;
+    transition-timing-function: ease;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}

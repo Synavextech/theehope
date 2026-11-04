@@ -68,7 +68,7 @@ export default function Footer() {
                             </li>
                             <li className="flex items-center gap-2.5">
                                 <Mail className="h-4 w-4 text-[#CCB88B] shrink-0" />
-                                <a href="mailto:info@thevoiceofhope.org" className="hover:text-[#CCB88B] transition-colors">info@thevoiceofhope.org</a>
+                                <a href="mailto:info@thevoiceofhope.org" className="hover:text-[#CCB88B] transition-colors">info@theevoiceofhope.org</a>
                             </li>
                         </ul>
                     </div>
@@ -84,11 +84,7 @@ export default function Footer() {
                             <ul className="space-y-1.5">
                                 <li className="flex items-center gap-1.5 hover:text-[#CCB88B]">
                                     <ExternalLink className="h-3 w-3 text-[#CCB88B]" />
-                                    <span>Worlducationcentre</span>
-                                </li>
-                                <li className="flex items-center gap-1.5 hover:text-[#CCB88B]">
-                                    <ExternalLink className="h-3 w-3 text-[#CCB88B]" />
-                                    <span>UbunutAfrica</span>
+                                    <span>Worlducation.world</span>
                                 </li>
                                 <li className="flex items-center gap-1.5 hover:text-[#CCB88B]">
                                     <ExternalLink className="h-3 w-3 text-[#CCB88B]" />
@@ -97,10 +93,6 @@ export default function Footer() {
                                 <li className="flex items-center gap-1.5 hover:text-[#CCB88B]">
                                     <ExternalLink className="h-3 w-3 text-[#CCB88B]" />
                                     <span>Electrocare</span>
-                                </li>
-                                <li className="flex items-center gap-1.5 hover:text-[#CCB88B]">
-                                    <ExternalLink className="h-3 w-3 text-[#CCB88B]" />
-                                    <span>Extreme Traders & Brokers</span>
                                 </li>
                             </ul>
                         </div>
@@ -112,7 +104,7 @@ export default function Footer() {
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-300">
                         <div className="flex items-center gap-2">
                             <ShieldCheck className="h-4 w-4 text-amber-400" />
-                            <span>Motto: <strong className="text-white">EverythingGoodForHumanity</strong> | Wings of UbunutAfrica Tel: <a href="tel:+254724054460" className="text-amber-300 underline font-semibold">+254 724 054 460</a></span>
+                            <span>Motto: <strong className="text-white">EverythingGoodForHumanity</strong> | Wings of UbunutAfrica - I Am Because We Are</span>
                         </div>
                         <div className="flex gap-4">
                             <Link href="/terms" className="hover:text-white">Terms of Service</Link>
@@ -127,10 +119,10 @@ export default function Footer() {
                 {/* Signature Bottom Bar */}
                 <div className="border-t border-white/10 pt-6 text-center text-xs text-slate-300 leading-relaxed">
                     <p className="font-medium">
-                        © {new Date().getFullYear()} <strong>The Voice of strength Kenya - Hope for the future</strong>. All rights reserved.
+                        © {new Date().getFullYear()} <strong>The Voice of Hope Center - Hope for the future</strong>. All rights reserved.
                     </p>
                     <p className="mt-1 text-slate-300">
-                        Website designed and coded Under <strong>Worlducationcentre</strong> by <strong>Electrocare.tech</strong> — Under supervision of <strong>Lookin-Glass Technologies</strong> &amp; <strong>UbunutAfrica</strong>.
+                        Website designed and coded Under <strong>Worlducationcentre</strong> by <strong>Electrocare</strong> Under supervision of <strong>LookinGlass Technologies</strong> &amp; <strong>UbunutAfrica</strong>.
                     </p>
                 </div>
             </div>

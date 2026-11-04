@@ -59,10 +59,10 @@ export default function NavBar() {
                     </div>
                     <div className="flex flex-col">
                         <span className="text-base sm:text-lg font-black tracking-tight leading-none text-foreground group-hover:text-primary transition-colors">
-                            TheVoiceOfHope
+                            TheeVoiceOfHope
                         </span>
                         <span className="text-[9px] sm:text-[10px] font-bold text-[#2E5E43] dark:text-[#CCB88B] tracking-widest uppercase">
-                            Strength Kenya
+                            Cultivating Hope, Strength & Ressiliance
                         </span>
                     </div>
                 </Link>
@@ -127,27 +127,6 @@ export default function NavBar() {
                         </Button>
                     </Link>
 
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                            if (theme === "system") setTheme("light");
-                            else if (theme === "light") setTheme("dark");
-                            else setTheme("system");
-                        }}
-                        title={`Theme: ${theme === "system" ? "System (Auto)" : theme === "dark" ? "Dark" : "Light"} - Click to cycle`}
-                        className="rounded-full w-10 h-10 hover:bg-muted transition-colors"
-                        aria-label="Toggle theme"
-                    >
-                        {theme === "system" ? (
-                            <Monitor className="h-5 w-5 text-primary" />
-                        ) : theme === "dark" ? (
-                            <Moon className="h-5 w-5 text-blue-400" />
-                        ) : (
-                            <Sun className="h-5 w-5 text-amber-500" />
-                        )}
-                    </Button>
-
                     {user && <NotificationBell />}
 
                     {user ? (
@@ -176,6 +155,26 @@ export default function NavBar() {
                         </Link>
                     )}
                 </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                        if (theme === "system") setTheme("light");
+                        else if (theme === "light") setTheme("dark");
+                        else setTheme("system");
+                    }}
+                    title={`Theme: ${theme === "system" ? "System (Auto)" : theme === "dark" ? "Dark" : "Light"} - Click to cycle`}
+                    className="rounded-full w-10 h-10 hover:bg-muted transition-colors"
+                    aria-label="Toggle theme"
+                >
+                    {theme === "system" ? (
+                        <Monitor className="h-5 w-5 text-primary" />
+                    ) : theme === "dark" ? (
+                        <Moon className="h-5 w-5 text-blue-400" />
+                    ) : (
+                        <Sun className="h-5 w-5 text-amber-500" />
+                    )}
+                </Button>
 
                 {/* Mobile Actions */}
                 <div className="md:hidden flex items-center gap-2">

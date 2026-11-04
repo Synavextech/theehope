@@ -113,19 +113,18 @@ export default function Landing() {
         <div className="container mx-auto px-4 py-20 text-center relative z-10 max-w-4xl">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-[#CCB88B] text-xs md:text-sm font-bold uppercase tracking-wider mb-6 shadow-sm">
-            <Heart className="w-4 h-4 text-[#CCB88B] fill-[#CCB88B]" />
-            The Voice of strength Kenya — Hope for the future
+            The Voice of Hope Kenya, Brining Hope for a better future. A promise that we understand what you are going through and we are doing everything we can to support you get better.
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 tracking-tight leading-tight">
-            We Bring Hope to the Lost, <br className="hidden sm:inline" />
+            We Bring Hope to the Hopeless, <br className="hidden sm:inline" />
             <span className="text-[#CCB88B] underline decoration-[#CCB88B] decoration-4 underline-offset-8">
               We Help the Needy
             </span>
           </h1>
 
           <p className="text-lg sm:text-xl md:text-2xl text-slate-100 mb-10 max-w-2xl mx-auto font-normal leading-relaxed">
-            "Empowering communities, amplifying voices 💡" — Visiting children's homes, the aged, and street families to cook together, mentor, and share love.
+            "Empowering communities, amplifying voices" — Visiting children's homes, the aged, and street families to cook together, mentor, and share love.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -145,11 +144,11 @@ export default function Landing() {
           {/* Quick Sub-office Contacts Strip */}
           <div className="mt-12 pt-8 border-t border-white/15 flex flex-wrap justify-center items-center gap-6 text-xs sm:text-sm text-slate-200">
             <span className="flex items-center gap-1.5 font-semibold">
-              <MapPin className="w-4 h-4 text-[#CCB88B]" /> Nairobi, Kenya Headquarters
+              <MapPin className="w-4 h-4 text-[#CCB88B]" /> Nairobi, Kenya Headquarters Email
             </span>
             <span>•</span>
             <span className="flex items-center gap-1.5 font-semibold">
-              <PhoneCall className="w-4 h-4 text-[#CCB88B]" /> +254 798 182 108 / +254 798 332 690
+              <PhoneCall className="w-4 h-4 text-[#CCB88B]" /> info@theevoiceofhope.org
             </span>
           </div>
         </div>
@@ -157,7 +156,7 @@ export default function Landing() {
 
       {/* Pillars Carousel: What We Do */}
       <section id="features" className="py-24 bg-background">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto">
           <div className="text-center mb-16 max-w-3xl mx-auto">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#2E5E43]/10 text-[#2E5E43] text-xs font-bold uppercase tracking-wider mb-3 border border-[#2E5E43]/20">
               <Sparkles className="w-3.5 h-3.5 text-[#CCB88B]" />
@@ -167,7 +166,7 @@ export default function Landing() {
               How We Touch Lives Daily
             </h2>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              We believe in being physically present with the lost and needy—cooking warm meals, sitting with the aged, and opening doors of opportunity for street children.
+              We believe in being physically present with the lost and needy, cooking warm meals, sitting with the aged, and opening doors of opportunity for street children and brining hope to the hopeless.
             </p>
           </div>
 
@@ -225,13 +224,13 @@ export default function Landing() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
             <div className="space-y-6">
               <span className="text-xs font-bold uppercase tracking-widest text-[#CCB88B]">
-                Uplifting Lives Through Compassion, Service, and Love ❤️
+                Uplifting Lives Through Compassion, Service, and Love
               </span>
               <h2 className="text-3xl md:text-5xl font-black tracking-tight leading-tight">
-                A Safe Haven and Lifeline for Kenya's Most Vulnerable
+                A Safe Haven and Lifeline for the Most Vulnerable
               </h2>
               <p className="text-base sm:text-lg text-slate-100 leading-relaxed font-normal">
-                We are a registered charity organization in Nairobi, Kenya. Our mission is direct and heartfelt: we visit children's homes, the aged, and street families. We encourage them, spend quality time together, offer mentorship, cook hot meals, and provide clothing, food, shoes, and learning tools.
+                We are a registered charity organization Based in Nairobi, Kenya. Our mission is direct and heartfelt: we visit children's homes, the aged, and street families. We encourage them, spend quality time together, offer mentorship, cook hot meals, and provide clothing, food, shoes, and learning tools.
               </p>
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="p-4 rounded-2xl bg-white/10 border border-white/20">
@@ -310,7 +309,7 @@ export default function Landing() {
               Moments of Love & Smiles
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold text-foreground mt-1 mb-4">
-              Real Charity Outreach Gallery
+              Our Charity Outreach Gallery
             </h2>
             <p className="text-base sm:text-lg text-muted-foreground">
               Unfiltered moments from our visits to children's homes, elderly care centers, and street family communities in Kenya.

@@ -31,11 +31,9 @@ const charityPillars = [
 ];
 
 const partnersList = [
-    { name: "Worlducationcentre", note: "Primary Management & Educational Pillar" },
-    { name: "UbunutAfrica", note: "EverythingGoodForHumanity (Tel: +254 724 054 460)" },
+    { name: "Worlducation.world", note: "Management & Educational Pillar" },
     { name: "LookinGlass Technologies", note: "Digital Architecture & Tech Supervision" },
-    { name: "Electrocare.tech", note: "Engineering & Web Development" },
-    { name: "Extreme Traders & Brokers", note: "Logistics & Community Support" }
+    { name: "Electrocare.tech", note: "Engineering & Web Development" }
 ];
 
 export default function About() {
@@ -44,8 +42,8 @@ export default function About() {
             {/* Hero Section */}
             <HeroSection
                 backgroundImageUrl="/images/IMG-20261026-WA0010.jpg"
-                title="The Voice of Strength Kenya"
-                subtitle="Hope for the Future — Uplifting lives through compassion, service, and love ❤️"
+                title="Thee Voice of Hope Kenya"
+                subtitle="Hope for the Future Uplifting lives through compassion, service, and love. Join US today, and Make a Difference"
             >
                 <div className="flex flex-wrap gap-4 justify-center">
                     <Button asChild size="lg" className="bg-[#b8240d] hover:bg-[#961e0b] text-white font-bold h-13 px-8 rounded-2xl shadow-xl">
@@ -75,11 +73,11 @@ export default function About() {
                                 Who We Are
                             </div>
                             <h2 className="text-3xl md:text-5xl font-black text-foreground leading-tight">
-                                We Bring Hope to the Lost, <br />
-                                <span className="text-[#2E5E43] dark:text-[#CCB88B]">We Help the Needy</span>
+                                We Bring Hope to the Hopeless, <br />
+                                <span className="text-[#2E5E43] dark:text-[#CCB88B]">We Bring Help to the Needy</span>
                             </h2>
                             <p className="text-lg text-muted-foreground leading-relaxed font-normal">
-                                <strong>The Voice of strength Kenya - Hope for the future</strong> is a dedicated charity organization rooted in Nairobi, Kenya. We do frontline charity work by visiting children's homes, the aged, and street families.
+                                <strong>Thee Voice of Hope Kenya - Hope for a better future</strong> is a dedicated charity organization Headquartered in Nairobi, Kenya. We do frontline charity work by visiting children's homes, the aged, and street families.
                             </p>
                             <p className="text-base text-muted-foreground leading-relaxed">
                                 Rather than standing on the sidelines, we step into their spaces: we encourage them, have a good time together, provide mentorship, play games, and roll up our sleeves to cook hot meals together in the kitchen.
@@ -87,7 +85,7 @@ export default function About() {
                             <div className="p-4 rounded-2xl bg-muted/40 border border-border flex items-start gap-3">
                                 <ShieldCheck className="w-6 h-6 text-[#2E5E43] shrink-0 mt-0.5" />
                                 <p className="text-xs sm:text-sm text-foreground font-medium">
-                                    Motto: <strong className="text-[#2E5E43] dark:text-[#CCB88B]">EverythingGoodForHumanity</strong> — Managed under Worlducationcentre with the wings of UbunutAfrica, LookinGlass Technologies, and Electrocare.
+                                    Motto: <strong className="text-[#2E5E43] dark:text-[#CCB88B]">Everything GoodFor Humanity,</strong> One deed at a time, your support will count too,  don't miss out.
                                 </p>
                             </div>
                         </div>
@@ -101,28 +99,22 @@ export default function About() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <Card className="p-8 border border-border bg-card shadow-lg rounded-3xl flex flex-col justify-between">
                             <CardHeader className="p-0 mb-4">
-                                <div className="w-12 h-12 rounded-2xl bg-[#2E5E43] text-white flex items-center justify-center font-bold mb-3 shadow-md border border-[#CCB88B]">
-                                    💡
-                                </div>
                                 <CardTitle className="text-3xl font-black text-foreground">Our Vision</CardTitle>
                             </CardHeader>
                             <p className="text-lg text-muted-foreground leading-relaxed">
                                 <em>"Empowering communities, amplifying voices 💡"</em>
                             </p>
                             <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
-                                A Kenya where every street child, orphaned youth, and lonely elder is recognized, empowered, and embraced with opportunities for dignity, education, and lasting hope.
+                                A Community where every street child, orphaned youth, and lonely elder is recognized, empowered, and embraced with opportunities for dignity, education, and lasting hope.
                             </p>
                         </Card>
 
                         <Card className="p-8 border border-border bg-card shadow-lg rounded-3xl flex flex-col justify-between">
                             <CardHeader className="p-0 mb-4">
-                                <div className="w-12 h-12 rounded-2xl bg-[#2E5E43] text-[#CCB88B] flex items-center justify-center font-bold mb-3 shadow-md border border-[#CCB88B]">
-                                    ❤️
-                                </div>
                                 <CardTitle className="text-3xl font-black text-foreground">Our Mission</CardTitle>
                             </CardHeader>
                             <p className="text-lg text-muted-foreground leading-relaxed">
-                                <em>"Uplifting lives through compassion, service, and love ❤️"</em>
+                                <em>"Uplifting lives through compassion, service, and love"</em>
                             </p>
                             <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
                                 Bridging the gap of poverty by delivering direct in-kind goods, hot nutritious meals, emotional mentorship, and educational equipment directly into the hands of those in greatest need.
@@ -146,7 +138,7 @@ export default function About() {
                         <h4 className="text-4xl sm:text-5xl font-black text-[#2E5E43] dark:text-[#CCB88B] mb-1">
                             <CountUp to={12} suffix="k+" />
                         </h4>
-                        <p className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Warm Meals Served</p>
+                        <p className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Essential services delivered</p>
                     </div>
                     <div className="p-6 rounded-3xl bg-muted/40 border border-border">
                         <h4 className="text-4xl sm:text-5xl font-black text-[#CCB88B] mb-1">
@@ -158,7 +150,7 @@ export default function About() {
                         <h4 className="text-4xl sm:text-5xl font-black text-[#2E5E43] dark:text-[#CCB88B] mb-1">
                             <CountUp to={1500} suffix="+" />
                         </h4>
-                        <p className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Youths & Elders Mentored</p>
+                        <p className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Homeless Youths & children Helped</p>
                     </div>
                 </div>
             </section>
@@ -170,7 +162,7 @@ export default function About() {
                         <span className="text-xs font-bold uppercase tracking-widest text-[#b8240d]">Our Core Activities</span>
                         <h2 className="text-3xl md:text-5xl font-black text-foreground mt-1 mb-4">What We Do Together</h2>
                         <p className="text-muted-foreground text-base sm:text-lg">
-                            We don't simply drop off donations—we sit down, laugh, prepare food together, and walk life's road as one family.
+                            We don't simply drop off donations, we sit down, laugh, prepare food together, and walk life's road as one family.
                         </p>
                     </div>
 
@@ -204,7 +196,7 @@ export default function About() {
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {partnersList.map((partner, i) => (
                             <div key={i} className="p-6 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between">
                                 <div>

@@ -29,10 +29,10 @@ export default function LiveChatWidget({ isOpen, onClose, onUnreadChange }: Live
 
     // Get or create persistent guest session ID
     const getGuestSessionId = (): string => {
-        let sessionId = localStorage.getItem("wyc_guest_chat_session");
+        let sessionId = localStorage.getItem("voh_guest_chat_session");
         if (!sessionId) {
             sessionId = "guest_" + Math.random().toString(36).substring(2, 12) + "_" + Date.now();
-            localStorage.setItem("wyc_guest_chat_session", sessionId);
+            localStorage.setItem("voh_guest_chat_session", sessionId);
         }
         return sessionId;
     };
@@ -40,8 +40,8 @@ export default function LiveChatWidget({ isOpen, onClose, onUnreadChange }: Live
     // Load stored guest profile
     useEffect(() => {
         if (!user) {
-            const savedName = localStorage.getItem("wyc_guest_name") || "";
-            const savedEmail = localStorage.getItem("wyc_guest_email") || "";
+            const savedName = localStorage.getItem("voh_guest_name") || "";
+            const savedEmail = localStorage.getItem("voh_guest_email") || "";
             if (savedName) {
                 setGuestName(savedName);
                 setGuestEmail(savedEmail);
@@ -193,9 +193,9 @@ export default function LiveChatWidget({ isOpen, onClose, onUnreadChange }: Live
     const handleGuestSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!guestName.trim()) return;
-        localStorage.setItem("wyc_guest_name", guestName.trim());
+        localStorage.setItem("voh_guest_name", guestName.trim());
         if (guestEmail.trim()) {
-            localStorage.setItem("wyc_guest_email", guestEmail.trim());
+            localStorage.setItem("voh_guest_email", guestEmail.trim());
         }
         setIsGuestRegistered(true);
     };
@@ -389,13 +389,13 @@ export default function LiveChatWidget({ isOpen, onClose, onUnreadChange }: Live
                     </div>
                 ) : messages.length === 0 ? (
                     /* Empty Chat Greeting */
-                    <div className="h-full flex flex-col justify-center items-center text-center p-6 text-slate-500">
-                        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-2">
+                    <div className="h-full flex flex-col justify-center items-center text-center p-6 text-muted-foreground">
+                        <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center text-muted-foreground mb-2">
                             <Headphones className="w-6 h-6" />
                         </div>
-                        <p className="font-medium text-slate-700 text-sm mb-1">How can we help you today?</p>
-                        <p className="text-xs text-slate-400 max-w-xs">
-                            Ask us questions regarding event registrations, visa invitation letters, or forum participation.
+                        <p className="font-medium text-foreground text-sm mb-1">How can we help you today?</p>
+                        <p className="text-xs text-muted-foreground max-w-xs">
+                            Ask us questions regarding upcoming charity outreach visits, donations, pledges, or volunteering.
                         </p>
                     </div>
                 ) : (

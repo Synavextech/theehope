@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Calendar, MapPin, ChevronDown, Users, Bell, Info, Globe, HelpCircle, ArrowRight, MessageCircle } from "lucide-react";
+import { Loader2, Calendar, MapPin, Bell, HelpCircle, ArrowRight } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, isBefore } from "date-fns";
@@ -14,7 +14,7 @@ import { useLocation } from "wouter";
 
 export default function PastEvents() {
     const { toast } = useToast();
-    const [location, setLocation] = useLocation();
+    const [, setLocation] = useLocation();
     const [currentImageIdx, setCurrentImageIdx] = useState(0);
 
     // Parse event ID from URL
@@ -27,7 +27,7 @@ export default function PastEvents() {
             const { data, error } = await supabase
                 .from('Event')
                 .select('*')
-                .order('date', { ascending: false }); // Newest past event first
+                .order('date', { ascending: false });
             if (error) {
                 console.error("[Events] Supabase Fetch Error:", error);
                 throw error;
@@ -75,73 +75,49 @@ export default function PastEvents() {
     if (eventsLoading) return <div className="flex justify-center py-40"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>;
 
     return (
-        <div className="flex flex-col min-h-screen">
+        <div className="flex flex-col min-h-screen bg-background text-foreground">
             {selectedEvent ? (
                 <div className="flex flex-col min-h-screen">
                     {/* 1. Hero Section */}
-                    <section className="relative min-h-[80vh] flex items-center pt-20 overflow-hidden bg-slate-900">
-                        <div className="absolute inset-0 opacity-40">
-                            <img src={selectedEvent.heroImageUrl || selectedEvent.imageUrls?.[0] || "/images/event.png"} className="w-full h-full object-cover" alt="" />
+                    <section className="relative min-h-[80vh] flex items-center pt-20 overflow-hidden bg-slate-950">
+                        <div className="absolute inset-0 opacity-45">
+                            <img src={selectedEvent.heroImageUrl || selectedEvent.imageUrls?.[0] || "/images/IMG-20261026-WA0030.jpg"} className="w-full h-full object-cover" alt={selectedEvent.title} />
                         </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent" />
 
                         <div className="container mx-auto px-4 relative z-10 text-white">
                             <div className="w-full max-w-4xl">
                                 {selectedEvent.theme && (
-                                    <span className="inline-block px-4 py-1.5 rounded-full bg-primary/20 backdrop-blur-md border border-primary/30 text-primary font-bold mb-6">
+                                    <span className="inline-block px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-[#CCB88B]/40 text-[#CCB88B] font-bold mb-6">
                                         {selectedEvent.theme}
                                     </span>
                                 )}
-                                <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight tracking-tighter">
+                                <h1 className="text-4xl md:text-6xl font-black mb-8 leading-tight tracking-tight">
                                     {selectedEvent.title}
                                 </h1>
-                                <p className="text-xl md:text-2xl text-slate-300 mb-10 leading-relaxed w-full">
+                                <p className="text-lg md:text-xl text-slate-200 mb-10 leading-relaxed w-full">
                                     {selectedEvent.description}
                                 </p>
                                 <div className="flex flex-wrap gap-6 text-lg mb-10">
-                                    <div className="flex items-center gap-2"><Calendar className="text-primary" /> {format(new Date(selectedEvent.date), 'PPPP')}</div>
-                                    <div className="flex items-center gap-2"><MapPin className="text-primary" /> {selectedEvent.location}</div>
+                                    <div className="flex items-center gap-2"><Calendar className="text-[#CCB88B]" /> {format(new Date(selectedEvent.date), 'PPPP')}</div>
+                                    <div className="flex items-center gap-2"><MapPin className="text-[#b8240d]" /> {selectedEvent.location}</div>
                                 </div>
                             </div>
                         </div>
                     </section>
 
-                    {/* 2. Alignment Section (Impact & Vision) */}
-                    {selectedEvent.alignment?.title && (
-                        <section className="py-24 bg-white dark:bg-slate-950">
-                            <div className="container mx-auto px-4">
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                                    <div>
-                                        <h2 className="text-4xl font-bold mb-8">{selectedEvent.alignment.title}</h2>
-                                        <p className="text-xl text-slate-600 dark:text-slate-400 leading-relaxed">
-                                            {selectedEvent.alignment.description}
-                                        </p>
-                                    </div>
-                                    <div className="p-10 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800">
-                                        <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                                            <Globe className="text-primary" /> Global Impact
-                                        </h3>
-                                        <p className="text-slate-600 dark:text-slate-400">
-                                            This event contributed to key global objectives, fostering dialogue and action among youth leaders worldwide.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    )}
-
-                    {/* 3. Key Features / Highlights */}
+                    {/* 2. Key Features / Highlights */}
                     {selectedEvent.features?.length > 0 && (
-                        <section className="py-24 bg-slate-50 dark:bg-slate-900/50">
+                        <section className="py-24 bg-muted/30">
                             <div className="container mx-auto px-4">
-                                <h2 className="text-3xl font-bold mb-12 text-center">Impact & Highlights</h2>
+                                <h2 className="text-3xl font-bold mb-12 text-center text-foreground">Impact & Highlights</h2>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                                     {selectedEvent.features.map((feature: string, idx: number) => (
-                                        <div key={idx} className="p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center">
+                                        <div key={idx} className="p-6 bg-card rounded-2xl shadow-sm border border-border flex flex-col items-center text-center">
                                             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-4 font-bold">
                                                 {idx + 1}
                                             </div>
-                                            <h4 className="font-bold leading-tight">{feature}</h4>
+                                            <h4 className="font-bold leading-tight text-foreground">{feature}</h4>
                                         </div>
                                     ))}
                                 </div>
@@ -149,23 +125,23 @@ export default function PastEvents() {
                         </section>
                     )}
 
-                    {/* 4. Activities Section (Itinerary) */}
+                    {/* 3. Activities Section (Itinerary) */}
                     {selectedEvent.activities?.length > 0 && (
-                        <section className="py-24 bg-white dark:bg-slate-950">
+                        <section className="py-24 bg-background">
                             <div className="container mx-auto px-4">
-                                <h2 className="text-4xl font-bold mb-16 text-center">Event Agenda</h2>
+                                <h2 className="text-4xl font-bold mb-16 text-center text-foreground">Outreach Agenda</h2>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                                     {selectedEvent.activities.map((day: any) => (
                                         <div key={day.day} className="space-y-6">
-                                            <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-2xl shadow-sm border-l-4 border-primary">
-                                                <h3 className="text-2xl font-bold">Day {day.day}</h3>
+                                            <div className="bg-card p-6 rounded-2xl shadow-sm border-l-4 border-primary border border-border">
+                                                <h3 className="text-2xl font-bold text-foreground">Day {day.day}</h3>
                                                 <p className="text-primary font-semibold">{day.date}</p>
                                             </div>
                                             <div className="space-y-4">
                                                 {day.items?.map((item: any, idx: number) => (
-                                                    <div key={idx} className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                                        <h4 className="font-bold text-lg mb-2">{item.title}</h4>
-                                                        <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">{item.description}</p>
+                                                    <div key={idx} className="bg-card p-6 rounded-2xl border border-border">
+                                                        <h4 className="font-bold text-lg mb-2 text-foreground">{item.title}</h4>
+                                                        <p className="text-muted-foreground text-sm leading-relaxed">{item.description}</p>
                                                     </div>
                                                 ))}
                                             </div>
@@ -176,17 +152,17 @@ export default function PastEvents() {
                         </section>
                     )}
 
-                    {/* 5. Speakers Section */}
+                    {/* 4. Coordinators / Speakers Section */}
                     {selectedEvent.speakers?.length > 0 && (
-                        <section className="py-24 bg-slate-50 dark:bg-slate-900/50">
+                        <section className="py-24 bg-muted/30">
                             <div className="container mx-auto px-4">
                                 <div className="text-center max-w-2xl mx-auto mb-16">
-                                    <h2 className="text-4xl font-bold mb-4">Distinguished Speakers</h2>
-                                    <p className="text-slate-600 dark:text-slate-400">Leaders who shared their insights and expertise.</p>
+                                    <h2 className="text-4xl font-bold mb-4 text-foreground">Outreach Coordinators & Leaders</h2>
+                                    <p className="text-muted-foreground">Community leaders and volunteers who guided this mission.</p>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                                     {selectedEvent.speakers.map((s: any, idx: number) => (
-                                        <div key={idx} className="group relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow">
+                                        <div key={idx} className="group relative overflow-hidden rounded-3xl bg-card border border-border shadow-sm hover:shadow-md transition-shadow">
                                             <div className="aspect-[3/4] overflow-hidden">
                                                 <img
                                                     src={s.imageUrl || "/images/event.png"}
@@ -198,9 +174,9 @@ export default function PastEvents() {
                                                 />
                                             </div>
                                             <div className="p-8 space-y-2">
-                                                <h4 className="text-2xl font-bold">{s.name}</h4>
+                                                <h4 className="text-2xl font-bold text-foreground">{s.name}</h4>
                                                 <p className="text-primary font-bold">{s.role}</p>
-                                                <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-3">{s.bio}</p>
+                                                <p className="text-sm text-muted-foreground line-clamp-3">{s.bio}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -209,18 +185,18 @@ export default function PastEvents() {
                         </section>
                     )}
 
-                    {/* 6. User Journey (Preparation - Retained as context) */}
+                    {/* 5. User Journey */}
                     {selectedEvent.journey?.arrival && (
                         <section className="py-24 bg-slate-900 text-white">
                             <div className="container mx-auto px-4">
                                 <h2 className="text-4xl font-bold mb-16 text-center">How We Prepared</h2>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                                     <div className="p-10 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10">
-                                        <h3 className="text-2xl font-bold mb-6 flex items-center gap-3"><MapPin className="text-primary" /> Arrival & Logistics</h3>
+                                        <h3 className="text-2xl font-bold mb-6 flex items-center gap-3"><MapPin className="text-[#CCB88B]" /> Arrival & Logistics</h3>
                                         <p className="text-slate-300 leading-relaxed whitespace-pre-line">{selectedEvent.journey.arrival}</p>
                                     </div>
                                     <div className="p-10 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10">
-                                        <h3 className="text-2xl font-bold mb-6 flex items-center gap-3"><Bell className="text-primary" /> What Was Expected</h3>
+                                        <h3 className="text-2xl font-bold mb-6 flex items-center gap-3"><Bell className="text-[#CCB88B]" /> What Was Accomplished</h3>
                                         <p className="text-slate-300 leading-relaxed whitespace-pre-line">{selectedEvent.journey.expectations}</p>
                                     </div>
                                 </div>
@@ -228,13 +204,13 @@ export default function PastEvents() {
                         </section>
                     )}
 
-                    {/* 7. Media Gallery Shuffle */}
+                    {/* 6. Media Gallery Shuffle */}
                     {selectedEvent.imageUrls?.length > 0 && (
-                        <section className="py-24 overflow-hidden bg-slate-50 dark:bg-slate-900/40">
+                        <section className="py-24 overflow-hidden bg-muted/30">
                             <div className="container mx-auto px-4">
                                 <div className="text-center mb-16">
-                                    <h2 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">Event Gallery</h2>
-                                    <p className="text-slate-500 text-lg">Moments captured from this transformative event.</p>
+                                    <h2 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight text-foreground">Outreach Gallery</h2>
+                                    <p className="text-muted-foreground text-lg">Moments captured from this transformative community visit.</p>
                                 </div>
                                 <div className="max-w-7xl mx-auto aspect-[16/7] relative rounded-[2.5rem] overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] bg-slate-950 group">
                                     <AnimatePresence mode="wait">
@@ -249,10 +225,8 @@ export default function PastEvents() {
                                         />
                                     </AnimatePresence>
 
-                                    {/* Overlay for depth */}
                                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-transparent pointer-events-none" />
 
-                                    {/* Progress indicator */}
                                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                                         {selectedEvent.imageUrls.map((_: any, idx: number) => (
                                             <div
@@ -266,19 +240,19 @@ export default function PastEvents() {
                         </section>
                     )}
 
-                    {/* 8. FAQ Section */}
+                    {/* 7. FAQ Section */}
                     {selectedEvent.faqs?.length > 0 && (
-                        <section className="py-24 bg-white dark:bg-slate-950">
+                        <section className="py-24 bg-background">
                             <div className="container mx-auto px-4">
-                                <h2 className="text-4xl font-bold mb-16 text-center">Frequently Asked Questions</h2>
+                                <h2 className="text-4xl font-bold mb-16 text-center text-foreground">Frequently Asked Questions</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                                     {selectedEvent.faqs.map((faq: any, idx: number) => (
-                                        <div key={idx} className="p-8 bg-slate-50 dark:bg-slate-900 rounded-3xl hover:shadow-xl transition-shadow border border-transparent hover:border-primary/20">
+                                        <div key={idx} className="p-8 bg-card rounded-3xl hover:shadow-xl transition-shadow border border-border hover:border-primary/20">
                                             <div className="flex items-start gap-3 mb-4">
                                                 <HelpCircle className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
-                                                <h4 className="text-lg font-bold leading-tight">{faq.question}</h4>
+                                                <h4 className="text-lg font-bold leading-tight text-foreground">{faq.question}</h4>
                                             </div>
-                                            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">{faq.answer}</p>
+                                            <p className="text-muted-foreground text-sm leading-relaxed">{faq.answer}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -309,25 +283,25 @@ export default function PastEvents() {
                             {pastEvents.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                                     {pastEvents.map((event: any) => (
-                                        <Card key={event.id} className="group flex flex-col h-full border-none shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden cursor-pointer" onClick={() => setLocation(`/past-events?id=${event.id}`)}>
-                                            <div className="aspect-video relative overflow-hidden bg-slate-100">
+                                        <Card key={event.id} className="group flex flex-col h-full border border-border bg-card shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden cursor-pointer" onClick={() => setLocation(`/past-events?id=${event.id}`)}>
+                                            <div className="aspect-video relative overflow-hidden bg-muted">
                                                 <img
-                                                    src={event.heroImageUrl || event.imageUrls?.[0] || "/images/event.png"}
+                                                    src={event.heroImageUrl || event.imageUrls?.[0] || "/images/IMG-20261026-WA0030.jpg"}
                                                     alt={event.title}
                                                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                                 />
                                             </div>
                                             <CardHeader className="p-8 pb-4">
-                                                <CardTitle className="text-2xl font-bold text-slate-900 group-hover:text-primary transition-colors mb-4">{event.title}</CardTitle>
+                                                <CardTitle className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors mb-4">{event.title}</CardTitle>
                                                 <div className="space-y-3">
-                                                    <CardDescription className="flex items-center gap-3 text-slate-600">
-                                                        <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                                    <CardDescription className="flex items-center gap-3 text-muted-foreground">
+                                                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                                                             <Calendar className="h-4 w-4" />
                                                         </div>
                                                         {format(new Date(event.date), 'PPPP')}
                                                     </CardDescription>
-                                                    <CardDescription className="flex items-center gap-3 text-slate-600">
-                                                        <div className="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                                    <CardDescription className="flex items-center gap-3 text-muted-foreground">
+                                                        <div className="h-8 w-8 rounded-lg bg-[#b8240d]/10 flex items-center justify-center text-[#b8240d]">
                                                             <MapPin className="h-4 w-4" />
                                                         </div>
                                                         {event.location}
@@ -335,9 +309,9 @@ export default function PastEvents() {
                                                 </div>
                                             </CardHeader>
                                             <CardContent className="p-8 py-4 flex-grow">
-                                                <p className="text-slate-600 line-clamp-3 leading-relaxed">{event.description}</p>
+                                                <p className="text-muted-foreground line-clamp-3 leading-relaxed">{event.description}</p>
                                             </CardContent>
-                                            <CardFooter className="p-8 pt-4 border-t border-slate-50">
+                                            <CardFooter className="p-8 pt-4 border-t border-border">
                                                 <Button
                                                     className="w-full h-12 text-lg font-bold group/btn"
                                                     variant="outline"
@@ -347,14 +321,13 @@ export default function PastEvents() {
                                                 </Button>
                                             </CardFooter>
                                         </Card>
-
                                     ))}
                                 </div>
                             ) : (
-                                <div className="text-center py-20 bg-slate-50 rounded-3xl">
-                                    <Calendar className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-                                    <h3 className="text-2xl font-bold text-slate-900 mb-2">No Past Events Found</h3>
-                                    <p className="text-slate-600">We are just getting started! Check back soon to see our history.</p>
+                                <div className="text-center py-20 bg-card border border-border rounded-3xl">
+                                    <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                                    <h3 className="text-2xl font-bold text-foreground mb-2">No Past Events Found</h3>
+                                    <p className="text-muted-foreground">We are just getting started! Check back soon to see our outreach archive.</p>
                                 </div>
                             )}
                         </div>

@@ -4,65 +4,65 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%; /* #FFFFFF primary base background */
-    --foreground: 146 34% 15%; /* Deep forest neutral text */
+    --background: 0 0% 95%; /* #f2f2f2 dominant 60% background for content & negative space */
+    --foreground: 232 45% 12%; /* Deep royal slate text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 146 34% 15%;
+    --card: 0 0% 100%; /* Crisp white cards on #f2f2f2 background */
+    --card-foreground: 232 45% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 146 34% 15%;
+    --popover-foreground: 232 45% 12%;
 
-    --primary: 146 34% 27%; /* #2E5E43 rich emerald accent for key drivers & CTAs */
-    --primary-foreground: 0 0% 100%; /* #FFFFFF */
+    --primary: 240 94% 25%; /* #04047a 30% key branding, primary headings, and main CTA driver */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 42 42% 67%; /* #CCB88B warm secondary gold/sand tone */
-    --secondary-foreground: 146 34% 18%;
+    --secondary: 42 42% 67%; /* #CCB88B warm gold secondary highlight */
+    --secondary-foreground: 240 94% 18%;
 
-    --muted: 42 30% 96%;
-    --muted-foreground: 146 15% 42%;
+    --muted: 220 16% 90%;
+    --muted-foreground: 225 18% 38%;
 
-    --accent: 42 42% 67%; /* #CCB88B secondary gold for badges and accents */
-    --accent-foreground: 146 34% 15%;
+    --accent: 8 87% 39%; /* #b8240d <10% pure accent for micro-interactions, icons, borders, hover accents */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 8 87% 39%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 42 20% 86%;
-    --input: 42 20% 86%;
-    --ring: 146 34% 27%;
+    --border: 220 15% 84%;
+    --input: 220 15% 84%;
+    --ring: 240 94% 25%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 146 35% 8%; /* Deep forest night background */
-    --foreground: 0 0% 98%;
+    --background: 232 38% 7%; /* Deep midnight navy background */
+    --foreground: 0 0% 96%; /* #f2f2f2 light foreground text */
 
-    --card: 146 30% 12%;
-    --card-foreground: 0 0% 98%;
+    --card: 232 32% 11%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 146 30% 12%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 232 32% 11%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 42 42% 67%; /* #CCB88B luminous gold in dark mode */
-    --primary-foreground: 146 35% 10%;
+    --primary: 225 88% 64%; /* Luminous royal blue for high contrast in dark mode */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 146 34% 27%; /* #2E5E43 */
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 42 42% 67%; /* #CCB88B warm gold */
+    --secondary-foreground: 232 38% 10%;
 
-    --muted: 146 20% 16%;
-    --muted-foreground: 42 25% 75%;
+    --muted: 232 25% 16%;
+    --muted-foreground: 220 15% 72%;
 
-    --accent: 146 34% 38%;
+    --accent: 8 87% 46%; /* #b8240d accent adapted for dark mode */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 45%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 146 20% 22%;
-    --input: 146 20% 22%;
-    --ring: 42 42% 67%;
+    --border: 232 22% 20%;
+    --input: 232 22% 20%;
+    --ring: 225 88% 64%;
   }
 }
 

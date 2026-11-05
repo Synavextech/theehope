@@ -41,9 +41,9 @@ export default function PaymentSelection({
     return (
         <div className="space-y-6">
             {/* Amount Banner */}
-            <div className="text-center p-4 rounded-2xl bg-[#2E5E43]/10 border border-[#2E5E43]/20">
+            <div className="text-center p-4 rounded-2xl bg-primary/10 border border-primary/20">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contribution Amount</p>
-                <p className="text-3xl sm:text-4xl font-black text-[#2E5E43] dark:text-[#CCB88B] mt-1">
+                <p className="text-3xl sm:text-4xl font-black text-primary mt-1">
                     {currency} {Number(amount || 0).toLocaleString()}
                 </p>
             </div>
@@ -55,8 +55,8 @@ export default function PaymentSelection({
                     className={cn(
                         "rounded-2xl border-2 transition-all overflow-hidden",
                         selectedTab === 'mpesa'
-                            ? "border-[#2E5E43] bg-[#2E5E43]/5 shadow-sm"
-                            : "border-border hover:border-[#CCB88B]/60 bg-card"
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border hover:border-primary/40 bg-card"
                     )}
                 >
                     <button
@@ -81,12 +81,12 @@ export default function PaymentSelection({
                             </div>
                         </div>
                         {selectedTab === 'mpesa' && (
-                            <CheckCircle2 className="h-5 w-5 text-[#2E5E43] shrink-0" />
+                            <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                         )}
                     </button>
 
                     {selectedTab === 'mpesa' && (
-                        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-[#2E5E43]/15">
+                        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-border">
                             <div className="space-y-1.5">
                                 <Label htmlFor="mpesa-phone" className="text-xs font-bold text-foreground">
                                     Safaricom Phone Number:
@@ -102,13 +102,13 @@ export default function PaymentSelection({
                                             setPhoneError("");
                                         }}
                                         disabled={isProcessing || stkStatus === 'polling'}
-                                        className="h-11 rounded-xl text-sm"
+                                        className="h-11 rounded-xl text-sm bg-background"
                                     />
                                     <Button
                                         type="button"
                                         onClick={handleTriggerMpesa}
                                         disabled={isProcessing || stkStatus === 'polling'}
-                                        className="bg-[#2E5E43] hover:bg-[#234934] text-white font-bold h-11 px-5 rounded-xl shrink-0"
+                                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 px-5 rounded-xl shrink-0"
                                     >
                                         {stkStatus === 'polling' ? (
                                             <>
@@ -139,8 +139,8 @@ export default function PaymentSelection({
                     className={cn(
                         "rounded-2xl border-2 transition-all overflow-hidden",
                         selectedTab === 'cash'
-                            ? "border-[#2E5E43] bg-[#2E5E43]/5 shadow-sm"
-                            : "border-border hover:border-[#CCB88B]/60 bg-card"
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border hover:border-primary/40 bg-card"
                     )}
                 >
                     <button
@@ -154,28 +154,28 @@ export default function PaymentSelection({
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h4 className="font-bold text-base text-foreground">Pay on Arrival (Cash on Event Day)</h4>
+                                    <h4 className="font-bold text-base text-foreground">Pay on Arrival (Cash on Outreach Day)</h4>
                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                                         In-Person
                                     </span>
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                    Confirm attendance now, bring your cash pledge to reception on event day
+                                    Confirm attendance now, bring your cash donation to reception on event day
                                 </p>
                             </div>
                         </div>
                         {selectedTab === 'cash' && (
-                            <CheckCircle2 className="h-5 w-5 text-[#2E5E43] shrink-0" />
+                            <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                         )}
                     </button>
 
                     {selectedTab === 'cash' && (
-                        <div className="px-4 pb-4 pt-1 border-t border-[#2E5E43]/15">
+                        <div className="px-4 pb-4 pt-1 border-t border-border">
                             <Button
                                 type="button"
                                 onClick={() => onSelect('cash')}
                                 disabled={isProcessing}
-                                className="w-full bg-[#CCB88B] hover:bg-[#bfa979] text-[#2E5E43] font-black h-11 rounded-xl"
+                                className="w-full bg-[#b8240d] hover:bg-[#991d0a] text-white font-black h-11 rounded-xl"
                             >
                                 {isProcessing ? (
                                     <>
@@ -195,8 +195,8 @@ export default function PaymentSelection({
                     className={cn(
                         "rounded-2xl border-2 transition-all overflow-hidden",
                         selectedTab === 'stripe'
-                            ? "border-[#2E5E43] bg-[#2E5E43]/5 shadow-sm"
-                            : "border-border hover:border-[#CCB88B]/60 bg-card"
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border hover:border-primary/40 bg-card"
                     )}
                 >
                     <button
@@ -205,7 +205,7 @@ export default function PaymentSelection({
                         className="w-full p-4 flex items-center justify-between text-left"
                     >
                         <div className="flex items-center gap-3.5">
-                            <div className="w-11 h-11 rounded-xl bg-slate-700 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+                            <div className="w-11 h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center font-bold shrink-0 shadow-sm">
                                 <CreditCard className="h-5 w-5" />
                             </div>
                             <div>
@@ -216,17 +216,17 @@ export default function PaymentSelection({
                             </div>
                         </div>
                         {selectedTab === 'stripe' && (
-                            <CheckCircle2 className="h-5 w-5 text-[#2E5E43] shrink-0" />
+                            <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                         )}
                     </button>
 
                     {selectedTab === 'stripe' && (
-                        <div className="px-4 pb-4 pt-1 border-t border-[#2E5E43]/15">
+                        <div className="px-4 pb-4 pt-1 border-t border-border">
                             <Button
                                 type="button"
                                 onClick={() => onSelect('stripe')}
                                 disabled={isProcessing}
-                                className="w-full bg-[#2E5E43] hover:bg-[#234934] text-white font-bold h-11 rounded-xl"
+                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl"
                             >
                                 {isProcessing ? (
                                     <>
@@ -244,7 +244,7 @@ export default function PaymentSelection({
 
             {/* Trust and Safety Alert */}
             <div className="bg-muted/60 border border-border p-3.5 rounded-2xl flex gap-3 text-muted-foreground text-xs leading-relaxed">
-                <AlertCircle className="h-4 w-4 text-[#CCB88B] shrink-0 mt-0.5" />
+                <AlertCircle className="h-4 w-4 text-[#b8240d] shrink-0 mt-0.5" />
                 <p>
                     All contributions directly sponsor hot meals, learning stationery, and outreach logistics for children’s homes and street families in Kenya. Official receipts generated immediately.
                 </p>

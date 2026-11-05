@@ -89,50 +89,37 @@ app.post('/api/auth/clear-session', (req, res) => {
 
 // Stripe Checkout Session
 app.post('/api/create-checkout-session', async (req, res) => {
-    const { eventId, category, amount, userId, bookingId, type = 'event', returnUrl } = req.body;
+    const { eventId, category, amount, userId, bookingId, type = 'event', returnUrl, isInstallment } = req.body;
     try {
-        let productData = {};
+        let productData = {
+            name: isInstallment ? `Pledge Installment Contribution` : `Charity Outreach Contribution`,
+            description: `Category: ${category || 'Outreach Support'}`,
+        };
 
-        if (type === 'event') {
-            // Check if event has already passed
-            const { data: eventData, error: eventError } = await supabase
+        if (eventId && eventId !== 'N/A' && supabase) {
+            const { data: eventData } = await supabase
                 .from('Event')
-                .select('date')
+                .select('title, date')
                 .eq('id', eventId)
-                .single();
+                .maybeSingle();
 
-            if (eventError || !eventData) {
-                console.error('Event fetch error:', eventError);
-                return res.status(404).json({ error: "Event not found" });
+            if (eventData) {
+                productData = {
+                    name: isInstallment
+                        ? `Pledge Installment: ${eventData.title}`
+                        : `Outreach Support: ${eventData.title}`,
+                    description: `Category: ${category || 'Supporter'}`,
+                };
             }
-
-            const eventDate = new Date(eventData.date);
-            const now = new Date();
-            if (eventDate < now) {
-                return res.status(400).json({ error: "This event has already passed. Registration is closed." });
-            }
-
-            productData = {
-                name: `Event Booking: ${eventId}`,
-                description: `Category: ${category}`,
-            };
-        } else if (type === 'visa') {
-            productData = {
-                name: `Visa Invitation Request: ${eventId}`,
-                description: 'Official Visa Invitation Letter',
-            };
-        } else if (type === 'application') {
-            productData = {
-                name: `Application Donation`,
-                description: `Donation for Application`,
-            };
         }
 
         const metadata = {
             bookingId,
             userId: userId || 'N/A',
             eventId: eventId || 'N/A',
-            type
+            type,
+            isInstallment: isInstallment ? 'true' : 'false',
+            paidAmount: String(amount || 0)
         };
 
         const frontendBase = process.env.NODE_ENV === 'production'
@@ -149,12 +136,12 @@ app.post('/api/create-checkout-session', async (req, res) => {
         const currency = (req.body.currency || 'kes').toLowerCase();
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
-            customer_email: req.body.email,
+            customer_email: req.body.email || undefined,
             line_items: [{
                 price_data: {
                     currency: currency,
                     product_data: productData,
-                    unit_amount: Math.round(amount * 100),
+                    unit_amount: Math.round(Number(amount) * 100),
                 },
                 quantity: 1,
             }],
@@ -170,6 +157,70 @@ app.post('/api/create-checkout-session', async (req, res) => {
     }
 });
 
+// Helper to settle booking or pledge installment
+async function settleBookingPayment(bookingId, paidAmount, method, receiptRef = null) {
+    if (!supabase || !bookingId) return null;
+
+    const { data: existing } = await supabase
+        .from('Booking')
+        .select('*, Event(title, date)')
+        .eq('id', bookingId)
+        .maybeSingle();
+
+    if (!existing) return null;
+
+    const numericPaid = Number(paidAmount || 0);
+    const prevPaid = Number(existing.amountPaid || 0);
+    const pledgedTotal = Number(existing.pledged_amount || 0);
+    const isPledge = Boolean(existing.is_pledge);
+
+    let newAmountPaid = numericPaid > 0 ? numericPaid : prevPaid;
+    let updatedHistory = Array.isArray(existing.installment_history) ? [...existing.installment_history] : [];
+
+    if (isPledge && numericPaid > 0) {
+        // If this is a subsequent installment or initial bit, record in installment_history
+        const alreadyRecorded = receiptRef && updatedHistory.some(h => h.receipt === receiptRef);
+        if (!alreadyRecorded) {
+            // Check if amountPaid was already pre-filled on initial booking creation
+            if (updatedHistory.length === 0 && prevPaid === numericPaid && existing.payment_status === 'PENDING') {
+                newAmountPaid = numericPaid;
+            } else {
+                newAmountPaid = prevPaid + numericPaid;
+            }
+            updatedHistory.push({
+                amount: numericPaid,
+                date: new Date().toISOString(),
+                method,
+                receipt: receiptRef || `${method}-${Date.now()}`
+            });
+        }
+    }
+
+    const fullySettled = !isPledge || (pledgedTotal > 0 && newAmountPaid >= pledgedTotal);
+    const newStatus = fullySettled ? 'CONFIRMED' : 'PLEDGED';
+    const newPaymentStatus = fullySettled ? 'PAID' : 'PARTIAL_PLEDGE';
+
+    const updatePayload = {
+        status: newStatus,
+        payment_status: newPaymentStatus,
+        payment_method: method,
+        amountPaid: newAmountPaid,
+        installment_history: updatedHistory
+    };
+    if (receiptRef && method === 'MPESA') {
+        updatePayload.mpesa_receipt = receiptRef;
+    }
+
+    const { data: updated } = await supabase
+        .from('Booking')
+        .update(updatePayload)
+        .eq('id', bookingId)
+        .select('*, Event(title, date)')
+        .maybeSingle();
+
+    return updated || existing;
+}
+
 // Stripe Webhook for async confirmation
 app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'];
@@ -183,59 +234,22 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
 
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
-        const { bookingId, type, userId } = session.metadata || {};
+        const { bookingId, type, userId, paidAmount } = session.metadata || {};
 
         try {
-            let targetUserId = userId && userId !== 'N/A' ? userId : null;
-            let notificationTitle = "Payment Confirmed";
-            let notificationMsg = `Your payment for ${type || 'service'} was confirmed.`;
+            const booking = await settleBookingPayment(bookingId, Number(paidAmount || (session.amount_total ? session.amount_total / 100 : 0)), 'STRIPE', session.id);
+            const targetUserId = (userId && userId !== 'N/A') ? userId : booking?.userId;
 
-            if (type === 'event') {
-                const { data: booking } = await supabase
-                    .from('Booking')
-                    .update({ status: 'CONFIRMED' })
-                    .eq('id', bookingId)
-                    .select('userId, Event(title)')
-                    .maybeSingle();
-
-                if (booking) {
-                    targetUserId = targetUserId || booking.userId;
-                    notificationTitle = "Event Booking Confirmed";
-                    notificationMsg = `Your booking for "${booking.Event?.title || 'the event'}" has been confirmed!`;
-                }
-            } else if (type === 'visa') {
-                const { data: visa } = await supabase
-                    .from('VisaInvitation')
-                    .update({ status: 'PAID', paymentStatus: 'PAID' })
-                    .eq('id', bookingId)
-                    .select('userId')
-                    .maybeSingle();
-
-                if (visa) {
-                    targetUserId = targetUserId || visa.userId;
-                    notificationTitle = "Visa Invitation Request Confirmed";
-                    notificationMsg = `Your payment for the Visa Invitation Letter has been confirmed and is now under processing.`;
-                }
-            } else if (type === 'application') {
-                const { data: appData } = await supabase
-                    .from('Applications')
-                    .update({ status: 'APPROVED', paymentStatus: 'PAID' })
-                    .eq('id', bookingId)
-                    .select('userId, type')
-                    .maybeSingle();
-
-                if (appData) {
-                    targetUserId = targetUserId || appData.userId;
-                    notificationTitle = "Application Donation Confirmed";
-                    notificationMsg = `Your application (${appData.type}) and donation have been confirmed.`;
-                }
-            }
-
-            if (targetUserId) {
+            if (targetUserId && supabase) {
+                const remaining = booking?.is_pledge
+                    ? Math.max(0, Number(booking.pledged_amount || 0) - Number(booking.amountPaid || 0))
+                    : 0;
                 await supabase.from('Notification').insert({
                     userId: targetUserId,
-                    title: notificationTitle,
-                    message: notificationMsg,
+                    title: booking?.is_pledge && remaining > 0 ? "Pledge Installment Confirmed! ❤️" : "Outreach Contribution Confirmed! ❤️",
+                    message: booking?.is_pledge && remaining > 0
+                        ? `Your installment payment for "${booking?.Event?.title || 'our charity outreach'}" was confirmed! Remaining pledge balance: KES ${remaining.toLocaleString()}.`
+                        : `Your contribution for "${booking?.Event?.title || 'our charity outreach'}" has been confirmed! Thank you for bringing hope.`,
                     type: 'SUCCESS',
                     isRead: false
                 });
@@ -257,37 +271,26 @@ app.post('/api/webhook/paypal', async (req, res) => {
 
         if (event.event_type === 'PAYMENT.CAPTURE.COMPLETED' || event.event_type === 'CHECKOUT.ORDER.APPROVED') {
             const resource = event.resource;
-            // Depending on PAYPAL setup, the custom_id is usually tracked in purchase_units
-            // but webhook payload structure varies a bit depending on order vs capture.
-            // Let's check for custom_id commonly placed in resource.custom_id or resource.purchase_units[0].custom_id
-
             let bookingId = resource.custom_id;
 
-            // If it's an order approved event, custom_id is in purchase_units
             if (!bookingId && resource.purchase_units && resource.purchase_units.length > 0) {
                 bookingId = resource.purchase_units[0].custom_id;
             }
 
             if (bookingId) {
-                // Update corresponding tables safely
-                const { data: bData } = await supabase.from('Booking').update({ status: 'CONFIRMED' }).eq('id', bookingId).select('userId, Event(title)').maybeSingle();
-                const { data: vData } = await supabase.from('VisaInvitation').update({ status: 'PAID', paymentStatus: 'PAID' }).eq('id', bookingId).select('userId').maybeSingle();
-                const { data: aData } = await supabase.from('Applications').update({ status: 'APPROVED', paymentStatus: 'PAID' }).eq('id', bookingId).select('userId, type').maybeSingle();
-
-                const targetUserId = bData?.userId || vData?.userId || aData?.userId;
-                if (targetUserId) {
+                const bData = await settleBookingPayment(bookingId, 0, 'PAYPAL', resource.id);
+                const targetUserId = bData?.userId;
+                if (targetUserId && supabase) {
                     await supabase.from('Notification').insert({
                         userId: targetUserId,
-                        title: "Payment Confirmed (PayPal)",
-                        message: "Your PayPal transaction was successfully verified and confirmed.",
+                        title: "Contribution Confirmed (PayPal)",
+                        message: "Your PayPal contribution was successfully verified and confirmed.",
                         type: 'SUCCESS',
                         isRead: false
                     });
                 }
 
                 console.log(`PayPal webhook payment confirmed and DB updated for bookingId: ${bookingId}`);
-            } else {
-                console.log('PayPal webhook received but no custom_id (bookingId) found in payload', resource);
             }
         }
 
@@ -301,66 +304,20 @@ app.post('/api/webhook/paypal', async (req, res) => {
 // PayPal Order Verification & Settlement
 app.post('/api/verify-paypal-order', async (req, res) => {
     try {
-        const { orderId, bookingId, type, userId } = req.body;
+        const { orderId, bookingId, userId, amount } = req.body;
         if (!bookingId) {
             return res.status(400).json({ error: 'Missing bookingId parameter' });
         }
 
         if (supabase) {
-            let targetUserId = userId || null;
-            let notificationTitle = "Payment Confirmed (PayPal)";
-            let notificationMsg = "Your PayPal transaction was successfully processed and confirmed.";
-
-            if (type === 'event') {
-                const { data: booking } = await supabase
-                    .from('Booking')
-                    .update({
-                        status: 'CONFIRMED',
-                        payment_status: 'PAID',
-                        payment_method: 'PAYPAL'
-                    })
-                    .eq('id', bookingId)
-                    .select('userId, Event(title)')
-                    .maybeSingle();
-
-                if (booking) {
-                    targetUserId = targetUserId || booking.userId;
-                    notificationTitle = "Event Booking Confirmed";
-                    notificationMsg = `Your booking for "${booking.Event?.title || 'the outreach event'}" has been confirmed via PayPal!`;
-                }
-            } else if (type === 'visa') {
-                const { data: visa } = await supabase
-                    .from('VisaInvitation')
-                    .update({ status: 'PAID', paymentStatus: 'PAID' })
-                    .eq('id', bookingId)
-                    .select('userId')
-                    .maybeSingle();
-
-                if (visa) {
-                    targetUserId = targetUserId || visa.userId;
-                    notificationTitle = "Visa Invitation Request Confirmed";
-                    notificationMsg = "Your PayPal payment for the Visa Invitation Letter has been confirmed.";
-                }
-            } else if (type === 'application') {
-                const { data: appData } = await supabase
-                    .from('Applications')
-                    .update({ status: 'APPROVED', paymentStatus: 'PAID' })
-                    .eq('id', bookingId)
-                    .select('userId, type')
-                    .maybeSingle();
-
-                if (appData) {
-                    targetUserId = targetUserId || appData.userId;
-                    notificationTitle = "Application Donation Confirmed";
-                    notificationMsg = `Your donation for application (${appData.type}) was confirmed via PayPal.`;
-                }
-            }
+            const booking = await settleBookingPayment(bookingId, Number(amount || 0), 'PAYPAL', orderId);
+            const targetUserId = userId || booking?.userId || null;
 
             if (targetUserId) {
                 await supabase.from('Notification').insert({
                     userId: targetUserId,
-                    title: notificationTitle,
-                    message: notificationMsg,
+                    title: "Contribution Confirmed (PayPal)",
+                    message: `Your contribution for "${booking?.Event?.title || 'the outreach event'}" has been confirmed via PayPal!`,
                     type: 'SUCCESS',
                     isRead: false
                 }).catch(err => console.log('Notification error:', err.message));
@@ -583,19 +540,17 @@ app.post('/api/mpesa/callback', async (req, res) => {
             console.log(`[M-Pesa Callback Success] Receipt: ${receipt}, Amount: ${amount}, Phone: ${phone}`);
 
             if (supabase) {
-                // Update Booking
-                const { data: booking } = await supabase
+                // Find booking by checkoutRequestId and settle (handles both full donations & pledge installments)
+                const { data: targetBooking } = await supabase
                     .from('Booking')
-                    .update({
-                        status: 'CONFIRMED',
-                        payment_status: 'PAID',
-                        mpesa_receipt: receipt,
-                        amountPaid: amount,
-                        payment_method: 'MPESA'
-                    })
+                    .select('id')
                     .eq('mpesa_checkout_request_id', checkoutRequestId)
-                    .select('*, Event(title)')
                     .maybeSingle();
+
+                let booking = null;
+                if (targetBooking?.id) {
+                    booking = await settleBookingPayment(targetBooking.id, Number(amount || 0), 'MPESA', receipt);
+                }
 
                 // Update MpesaTransaction record
                 await supabase
@@ -613,10 +568,15 @@ app.post('/api/mpesa/callback', async (req, res) => {
 
                 // Send notification to user
                 if (booking?.userId) {
+                    const remaining = booking.is_pledge
+                        ? Math.max(0, Number(booking.pledged_amount || 0) - Number(booking.amountPaid || 0))
+                        : 0;
                     await supabase.from('Notification').insert({
                         userId: booking.userId,
-                        title: 'M-Pesa Contribution Received! ❤️',
-                        message: `Your donation of KES ${amount} (Receipt: ${receipt}) for "${booking.Event?.title || 'outreach'}" was successfully confirmed. May you be blessed for supporting our mission!`,
+                        title: booking.is_pledge && remaining > 0 ? 'M-Pesa Pledge Installment Received! ❤️' : 'M-Pesa Contribution Received! ❤️',
+                        message: booking.is_pledge && remaining > 0
+                            ? `Your installment bit of KES ${Number(amount).toLocaleString()} (Receipt: ${receipt}) for "${booking.Event?.title || 'outreach'}" was confirmed! Remaining pledge balance: KES ${remaining.toLocaleString()}.`
+                            : `Your donation of KES ${Number(amount).toLocaleString()} (Receipt: ${receipt}) for "${booking.Event?.title || 'outreach'}" was successfully confirmed. May you be blessed for supporting our mission!`,
                         type: 'SUCCESS',
                         isRead: false
                     }).catch(err => console.log('Notification insert error:', err.message));
@@ -661,7 +621,7 @@ app.get('/api/mpesa/query/:checkoutRequestId', async (req, res) => {
                 .eq('mpesa_checkout_request_id', checkoutRequestId)
                 .maybeSingle();
 
-            if (booking && (booking.status === 'CONFIRMED' || booking.payment_status === 'PAID')) {
+            if (booking && (booking.status === 'CONFIRMED' || booking.payment_status === 'PAID' || booking.payment_status === 'PARTIAL_PLEDGE')) {
                 return res.json({
                     status: 'COMPLETED',
                     receipt: booking.mpesa_receipt,
@@ -740,6 +700,245 @@ app.post('/api/booking/pay-on-arrival', async (req, res) => {
         return res.status(500).json({ error: error.message });
     }
 });
+
+// 5. UNIFIED GUEST & MEMBER BOOKING / DONATION / PLEDGE CREATION ENDPOINT
+app.post('/api/bookings/create', async (req, res) => {
+    try {
+        if (!supabase) {
+            return res.status(500).json({ error: 'Database client not initialized on server' });
+        }
+
+        const {
+            userId,
+            eventId,
+            guest_name,
+            guest_email,
+            guest_phone,
+            category,
+            amountPaid,
+            pledged_amount,
+            is_pledge,
+            reminder_frequency,
+            pledge_due_date,
+            status,
+            payment_status,
+            payment_method,
+            attendance_type,
+            delivery_method,
+            item_contributions,
+            volunteer_activities,
+            mingle_notes,
+            seek_to_adopt,
+            wish_note
+        } = req.body;
+
+        if (!userId && (!guest_name || !guest_phone)) {
+            return res.status(400).json({
+                error: 'Please provide your Full Name and Phone Number for guest checkout.'
+            });
+        }
+
+        // Resolve eventId if null (use nearest upcoming event or latest event)
+        let resolvedEventId = eventId || null;
+        if (!resolvedEventId) {
+            const { data: firstEvent } = await supabase
+                .from('Event')
+                .select('id, date')
+                .order('date', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (firstEvent?.id) {
+                resolvedEventId = firstEvent.id;
+            }
+        }
+
+        const insertPayload = {
+            userId: userId || null,
+            eventId: resolvedEventId,
+            guest_name: guest_name ? String(guest_name).trim() : null,
+            guest_email: guest_email ? String(guest_email).trim() : null,
+            guest_phone: guest_phone ? formatKenyanPhoneNumber(guest_phone) || String(guest_phone).trim() : null,
+            phone_number: guest_phone ? formatKenyanPhoneNumber(guest_phone) || String(guest_phone).trim() : null,
+            category: category || (attendance_type === 'ATTENDING' ? 'ATTENDEE_CONTRIBUTOR' : 'DONOR_SUPPORTER'),
+            amountPaid: Number(amountPaid || 0),
+            pledged_amount: Number(pledged_amount || 0),
+            is_pledge: Boolean(is_pledge),
+            reminder_frequency: is_pledge ? (reminder_frequency || 'WEEKLY') : 'NONE',
+            pledge_due_date: pledge_due_date || null,
+            installment_history: [],
+            currency: 'KES',
+            status: status || 'PENDING',
+            payment_status: payment_status || 'PENDING',
+            payment_method: payment_method || 'MPESA',
+            mode: 'PHYSICAL',
+            attendance_type: attendance_type || 'DONATING_ONLY',
+            delivery_method: delivery_method || 'IN_PERSON_EVENT_DAY',
+            item_contributions: Array.isArray(item_contributions) ? item_contributions : [],
+            volunteer_activities: Array.isArray(volunteer_activities) ? volunteer_activities : [],
+            mingle_notes: mingle_notes || null,
+            seek_to_adopt: Boolean(seek_to_adopt),
+            wish_note: wish_note || null
+        };
+
+        const { data: booking, error } = await supabase
+            .from('Booking')
+            .insert(insertPayload)
+            .select('*, Event(title, date, location)')
+            .single();
+
+        if (error) {
+            console.error('[Booking Create Error]', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        // If user is authenticated and made a pledge, send initial pledge confirmation & countdown notification
+        if (booking?.userId && booking?.is_pledge) {
+            const targetDate = booking.pledge_due_date || booking.Event?.date;
+            const daysRemaining = targetDate
+                ? Math.max(0, Math.ceil((new Date(targetDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+                : null;
+            await supabase.from('Notification').insert({
+                userId: booking.userId,
+                title: `Pledge Registered: KES ${Number(booking.pledged_amount).toLocaleString()} 🤝`,
+                message: `Thank you for pledging KES ${Number(booking.pledged_amount).toLocaleString()} toward "${booking.Event?.title || 'our charity outreach'}"! ${daysRemaining !== null ? `Countdown: ${daysRemaining} day(s) remaining.` : ''} You can pay comfortably in bits anytime from My Bookings & Pledges.`,
+                type: 'PLEDGE_REMINDER',
+                isRead: false
+            }).catch(() => {});
+        }
+
+        return res.json({ success: true, booking });
+    } catch (error) {
+        console.error('[Booking Create Exception]', error);
+        return res.status(500).json({ error: error.message || 'Failed to record booking or donation' });
+    }
+});
+
+// 6. GUEST & SUPPORTER PLEDGE / BOOKING LOOKUP ENDPOINT
+app.get('/api/pledges/lookup', async (req, res) => {
+    try {
+        if (!supabase) {
+            return res.status(500).json({ error: 'Database client not initialized' });
+        }
+        const rawQuery = String(req.query.query || '').trim();
+        if (!rawQuery) {
+            return res.status(400).json({ error: 'Please provide a phone number, email, or booking ID' });
+        }
+
+        const formattedPhone = formatKenyanPhoneNumber(rawQuery);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawQuery);
+
+        let queryBuilder = supabase
+            .from('Booking')
+            .select('*, event:Event(*)')
+            .order('createdAt', { ascending: false });
+
+        if (isUuid) {
+            queryBuilder = queryBuilder.eq('id', rawQuery);
+        } else if (rawQuery.includes('@')) {
+            queryBuilder = queryBuilder.ilike('guest_email', rawQuery);
+        } else {
+            queryBuilder = queryBuilder.or(`guest_phone.eq.${formattedPhone},phone_number.eq.${formattedPhone},guest_phone.ilike.%${rawQuery}%`);
+        }
+
+        const { data, error } = await queryBuilder.limit(20);
+        if (error) throw error;
+
+        return res.json({ bookings: data || [] });
+    } catch (error) {
+        console.error('[Pledge Lookup Error]', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// 7. PLEDGE COUNTDOWN REMINDER ENGINE (Automated & On-Demand)
+async function evaluateAndSendPledgeReminders({ userId = null, bookingId = null, force = false } = {}) {
+    if (!supabase) return { sentCount: 0 };
+
+    let query = supabase
+        .from('Booking')
+        .select('*, Event(title, date, location)')
+        .eq('is_pledge', true);
+
+    if (bookingId) {
+        query = query.eq('id', bookingId);
+    } else if (userId) {
+        query = query.eq('userId', userId);
+    }
+
+    const { data: pledges, error } = await query;
+    if (error || !pledges) return { sentCount: 0, error: error?.message };
+
+    const now = Date.now();
+    let sentCount = 0;
+
+    for (const pledge of pledges) {
+        const totalPledged = Number(pledge.pledged_amount || 0);
+        const amountPaid = Number(pledge.amountPaid || 0);
+        const remaining = Math.max(0, totalPledged - amountPaid);
+
+        if (remaining <= 0) continue; // Already fulfilled
+
+        const freq = pledge.reminder_frequency || 'WEEKLY';
+        if (freq === 'NONE' && !force) continue;
+
+        const intervalHours = freq === 'DAILY' ? 24 : freq === 'EVERY_3_DAYS' ? 72 : 168;
+        const lastSentMs = pledge.last_reminder_sent_at ? new Date(pledge.last_reminder_sent_at).getTime() : 0;
+        const hoursSinceLast = (now - lastSentMs) / (1000 * 60 * 60);
+
+        if (!force && lastSentMs > 0 && hoursSinceLast < intervalHours) {
+            continue;
+        }
+
+        const targetDateStr = pledge.pledge_due_date || pledge.Event?.date;
+        const targetMs = targetDateStr ? new Date(targetDateStr).getTime() : (now + 7 * 86400000);
+        const diffMs = Math.max(0, targetMs - now);
+        const daysLeft = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const hoursLeft = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+        const eventTitle = pledge.Event?.title || 'The Voice of Hope Charity Outreach';
+
+        if (pledge.userId) {
+            await supabase.from('Notification').insert({
+                userId: pledge.userId,
+                title: `Pledge Countdown: ${daysLeft}d ${hoursLeft}h Remaining ⏳`,
+                message: `Friendly reminder for "${eventTitle}": You have paid KES ${amountPaid.toLocaleString()} of your KES ${totalPledged.toLocaleString()} pledge (Remaining: KES ${remaining.toLocaleString()}). Pay your next bit anytime in My Bookings & Pledges!`,
+                type: 'PLEDGE_REMINDER',
+                isRead: false
+            }).catch(() => {});
+        }
+
+        await supabase
+            .from('Booking')
+            .update({ last_reminder_sent_at: new Date().toISOString() })
+            .eq('id', pledge.id)
+            .catch(() => {});
+
+        sentCount += 1;
+    }
+
+    return { sentCount };
+}
+
+app.post('/api/pledges/check-reminders', async (req, res) => {
+    try {
+        const { userId, bookingId, force } = req.body || {};
+        const result = await evaluateAndSendPledgeReminders({
+            userId: userId || null,
+            bookingId: bookingId || null,
+            force: Boolean(force || bookingId)
+        });
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('[Pledge Reminder Error]', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// Background interval every 30 minutes to deliver scheduled pledge countdown reminders
+setInterval(() => {
+    evaluateAndSendPledgeReminders().catch((err) => {
+        console.error('[Pledge Reminder Cron Error]', err.message);
+    });
+}, 30 * 60 * 1000);
 
 // Unmatched API route handler
 app.all('/api/*', (req, res) => {

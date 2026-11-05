@@ -38,15 +38,15 @@ export default function FirstVisitNotification() {
 
                     // Trigger toast
                     toast({
-                        title: "Exclusive Event Opportunity! 🚀",
-                        description: `Don't miss out on "${event.title}" happening on ${format(new Date(event.date), "PPP")}. Applications are still open!`,
+                        title: "Upcoming Charity Outreach! ❤️",
+                        description: `Join us for "${event.title}" on ${format(new Date(event.date), "PPP")}. Attend in person, donate, or make a pledge today!`,
                         action: (
                             <Button
                                 size="sm"
                                 className="w-full mt-2 rounded-xl group font-bold shadow-lg shadow-primary/20"
                                 onClick={() => setLocation(`/upcoming-events?id=${event.id}`)}
                             >
-                                Apply Now
+                                Attend or Donate
                                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                             </Button>
                         )

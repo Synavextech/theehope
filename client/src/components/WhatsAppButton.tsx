@@ -17,7 +17,7 @@ export default function WhatsAppButton() {
 
     // Formulated WhatsApp Link
     const message = encodeURIComponent(
-        "Hello! I am contacting you from the World Youth Centre platform and would like more information."
+        "Hello! I am contacting you from The Voice of Hope Kenya platform and would like to support or inquire about your charity outreach."
     );
     const whatsappUrl = `https://wa.me/${cleanNumber}?text=${message}`;
 
@@ -54,7 +54,7 @@ export default function WhatsAppButton() {
                         setUnreadCount(data.unreadUserCount);
                     }
                 } else {
-                    const sessionId = localStorage.getItem("wyc_guest_chat_session");
+                    const sessionId = localStorage.getItem("voh_guest_chat_session");
                     if (sessionId) {
                         const { data } = await supabase
                             .from("SupportConversation")

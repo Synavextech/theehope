@@ -38,9 +38,9 @@ function Router() {
                     <Route path="/blog" component={Blog} />
                     <Route path="/auth" component={AuthPage} />
 
-                    {/* Protected Routes */}
+                    {/* Protected & Supporter Routes */}
                     <ProtectedRoute path="/admin" component={Admin} requireAdmin={true} />
-                    <ProtectedRoute path="/my-requests" component={MyRequests} />
+                    <Route path="/my-requests" component={MyRequests} />
 
                     <Route path="/compliance" component={CompliancePolicy} />
                     <Route path="/privacy" component={PrivacyPolicy} />

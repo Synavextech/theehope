@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
@@ -8,11 +7,28 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Trash2, Edit2, Upload, Image as ImageIcon, CheckCircle, User2, Headphones, MessageSquare, Send, CheckCheck, Check, Search, MessageCircle, Heart, Target, DollarSign, Gift, Users, Phone } from "lucide-react";
+import {
+    Loader2,
+    Plus,
+    Trash2,
+    Edit2,
+    Upload,
+    Image as ImageIcon,
+    User2,
+    Headphones,
+    Send,
+    CheckCheck,
+    Check,
+    Search,
+    MessageCircle,
+    Heart,
+    Bell,
+    Clock,
+    Calendar,
+    Coins
+} from "lucide-react";
 import { format } from "date-fns";
-import { Event, insertEventSchema, VisaInvitation, Booking, SupportConversation, SupportMessage } from "@shared/schema";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Event, Booking } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 const ALL_CONTRIBUTION_OPTIONS = [
@@ -40,12 +56,7 @@ function UserManager() {
     const [users, setUsers] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState<any | null>(null);
-    const [userActivity, setUserActivity] = useState<any>({
-        bookings: [],
-        proposals: [],
-        applications: [],
-        visaRequests: []
-    });
+    const [userBookings, setUserBookings] = useState<any[]>([]);
     const [isFetchingActivity, setIsFetchingActivity] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const { toast } = useToast();
@@ -72,19 +83,14 @@ function UserManager() {
     const fetchUserActivity = async (userId: string) => {
         setIsFetchingActivity(true);
         try {
-            const [bookingsRes, proposalsRes, applicationsRes, visaRes] = await Promise.all([
-                supabase.from('Booking').select('*, Event(title)').eq('userId', userId),
-                supabase.from('Proposals').select('*, Event(title)').eq('userId', userId),
-                supabase.from('Applications').select('*').eq('userId', userId),
-                supabase.from('VisaInvitation').select('*, Event(title)').eq('userId', userId)
-            ]);
+            const { data, error } = await supabase
+                .from('Booking')
+                .select('*, Event(title, date)')
+                .eq('userId', userId)
+                .order('createdAt', { ascending: false });
 
-            setUserActivity({
-                bookings: bookingsRes.data || [],
-                proposals: proposalsRes.data || [],
-                applications: applicationsRes.data || [],
-                visaRequests: visaRes.data || []
-            });
+            if (error) throw error;
+            setUserBookings(data || []);
         } catch (error: any) {
             toast({ title: "Error fetching activity", description: error.message, variant: "destructive" });
         } finally {
@@ -102,9 +108,9 @@ function UserManager() {
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h2 className="text-xl font-bold text-primary">User Management</h2>
+                <h2 className="text-xl font-bold text-foreground">Registered Supporters & Volunteers</h2>
                 <Input
-                    placeholder="Search users..."
+                    placeholder="Search supporters..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="max-w-xs"
@@ -113,13 +119,13 @@ function UserManager() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Users List */}
-                <Card className="lg:col-span-1 h-[600px] flex flex-col">
-                    <CardHeader className="py-4">
-                        <CardTitle className="text-lg">Registered Users ({filteredUsers.length})</CardTitle>
+                <Card className="lg:col-span-1 h-[600px] flex flex-col border-border bg-card">
+                    <CardHeader className="py-4 border-b border-border">
+                        <CardTitle className="text-lg">Supporters ({filteredUsers.length})</CardTitle>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-y-auto p-2 space-y-2">
                         {filteredUsers.length === 0 ? (
-                            <p className="text-center text-gray-500 py-4 italic">No users found.</p>
+                            <p className="text-center text-muted-foreground py-4 italic">No users found.</p>
                         ) : (
                             filteredUsers.map(u => (
                                 <button
@@ -129,19 +135,19 @@ function UserManager() {
                                         fetchUserActivity(u.id);
                                     }}
                                     className={cn(
-                                        "w-full text-left p-3 rounded-md transition-colors border",
+                                        "w-full text-left p-3 rounded-xl transition-colors border",
                                         selectedUser?.id === u.id
                                             ? "bg-primary/10 border-primary shadow-sm"
-                                            : "bg-card hover:bg-slate-50 border-transparent hover:border-border"
+                                            : "bg-card hover:bg-muted/50 border-transparent hover:border-border"
                                     )}
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                                            {u.name?.charAt(0)?.toUpperCase()}
+                                            {u.name?.charAt(0)?.toUpperCase() || "S"}
                                         </div>
                                         <div className="overflow-hidden">
-                                            <p className="font-semibold truncate">{u.name}</p>
-                                            <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                                            <p className="font-semibold text-foreground truncate">{u.name}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                                         </div>
                                     </div>
                                 </button>
@@ -151,262 +157,91 @@ function UserManager() {
                 </Card>
 
                 {/* User Details & Activity */}
-                <Card className="lg:col-span-2 h-[600px] flex flex-col">
+                <Card className="lg:col-span-2 h-[600px] flex flex-col border-border bg-card">
                     {!selectedUser ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 space-y-4">
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-4">
                             <User2 className="h-16 w-16 opacity-20" />
-                            <p>Select a user to view their complete activity.</p>
+                            <p>Select a supporter to view their donations, pledges, and outreach history.</p>
                         </div>
                     ) : (
                         <>
-                            <CardHeader className="border-b bg-slate-50/50">
+                            <CardHeader className="border-b border-border bg-muted/30">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <CardTitle className="text-2xl">{selectedUser.name}</CardTitle>
+                                        <CardTitle className="text-2xl text-foreground">{selectedUser.name}</CardTitle>
                                         <CardDescription>{selectedUser.email}</CardDescription>
                                         <div className="flex gap-2 mt-2 text-xs flex-wrap">
-                                            <span className="bg-primary/10 text-primary px-2 py-1 rounded-md font-medium">Role: {selectedUser.role}</span>
-                                            <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-md">Joined: {format(new Date(selectedUser.createdAt), 'MMM yyyy')}</span>
+                                            <span className="bg-primary/10 text-primary px-2.5 py-1 rounded-md font-bold">Role: {selectedUser.role}</span>
+                                            {selectedUser.createdAt && (
+                                                <span className="bg-muted text-muted-foreground px-2.5 py-1 rounded-md">
+                                                    Joined: {format(new Date(selectedUser.createdAt), 'MMM yyyy')}
+                                                </span>
+                                            )}
                                         </div>
                                         {(selectedUser.phone || selectedUser.country || selectedUser.city || selectedUser.address) && (
-                                            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-slate-600">
-                                                {selectedUser.phone && <p><span className="font-semibold text-slate-400">Phone:</span> {selectedUser.phone}</p>}
-                                                {selectedUser.country && <p><span className="font-semibold text-slate-400">Country:</span> {selectedUser.country}</p>}
-                                                {selectedUser.city && <p><span className="font-semibold text-slate-400">City:</span> {selectedUser.city}</p>}
-                                                {selectedUser.address && <p><span className="font-semibold text-slate-400">Address:</span> {selectedUser.address}</p>}
+                                            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                                {selectedUser.phone && <p><span className="font-semibold text-foreground">Phone:</span> {selectedUser.phone}</p>}
+                                                {selectedUser.country && <p><span className="font-semibold text-foreground">Country:</span> {selectedUser.country}</p>}
+                                                {selectedUser.city && <p><span className="font-semibold text-foreground">City:</span> {selectedUser.city}</p>}
+                                                {selectedUser.address && <p><span className="font-semibold text-foreground">Address:</span> {selectedUser.address}</p>}
                                             </div>
                                         )}
                                     </div>
-                                    {selectedUser.Stats?.[0] && (
-                                        <div className="text-right text-sm text-gray-500">
-                                            <p>Events Attended: <strong className="text-primary">{selectedUser.Stats[0].eventsAttended || 0}</strong></p>
-                                            <p>Points: <strong className="text-primary">{selectedUser.Stats[0].points || 0}</strong></p>
-                                        </div>
-                                    )}
                                 </div>
                             </CardHeader>
-                            <CardContent className="flex-1 overflow-y-auto p-6 space-y-8">
+                            <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
                                 {isFetchingActivity ? (
                                     <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
                                 ) : (
-                                    <>
-                                        {/* Bookings Overview */}
-                                        <section>
-                                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">Event Bookings <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{userActivity.bookings.length}</span></h3>
-                                            {userActivity.bookings.length === 0 ? <p className="text-sm text-gray-500 italic">No event bookings yet.</p> : (
-                                                <div className="grid gap-2">
-                                                    {userActivity.bookings.map((b: any) => (
-                                                        <div key={b.id} className="text-sm p-3 bg-slate-50 border rounded-md flex justify-between items-center">
+                                    <section>
+                                        <h3 className="font-bold text-lg text-foreground mb-3 flex items-center gap-2">
+                                            Outreach Bookings, Donations & Pledges
+                                            <span className="text-xs bg-primary/10 px-2.5 py-0.5 rounded-full text-primary font-bold">
+                                                {userBookings.length}
+                                            </span>
+                                        </h3>
+                                        {userBookings.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground italic">No donations, pledges, or event bookings yet.</p>
+                                        ) : (
+                                            <div className="grid gap-3">
+                                                {userBookings.map((b: any) => {
+                                                    const isPledge = !!b.is_pledge || Number(b.pledged_amount) > 0;
+                                                    const pledgedTotal = Number(b.pledged_amount || 0);
+                                                    const paidTotal = Number(b.amountPaid || 0);
+                                                    return (
+                                                        <div key={b.id} className="text-sm p-4 bg-muted/30 border border-border rounded-xl flex justify-between items-center gap-4">
                                                             <div>
-                                                                <p className="font-medium text-primary">{b.Event?.title}</p>
-                                                                <p className="text-xs text-gray-500">Category: {b.category}</p>
+                                                                <p className="font-bold text-foreground">
+                                                                    {b.Event?.title || "General Charity Contribution"}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                                    {b.attendance_type === 'ATTENDING' ? 'In-Person Attendance' : 'Donation / Well-Wisher'}
+                                                                    {isPledge ? ` • Pledge (Paid KES ${paidTotal.toLocaleString()} of KES ${pledgedTotal.toLocaleString()})` : ''}
+                                                                </p>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <p className="font-bold">KES {Number(b.amountPaid || 0).toLocaleString()}</p>
+                                                            <div className="text-right shrink-0">
+                                                                <p className="font-black text-primary">
+                                                                    KES {paidTotal.toLocaleString()}
+                                                                </p>
                                                                 <span className={cn(
-                                                                    "text-[10px] px-2 py-0.5 rounded-full uppercase",
-                                                                    b.status === 'CONFIRMED' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
-                                                                )}>{b.status}</span>
+                                                                    "text-[10px] px-2 py-0.5 rounded-full uppercase font-bold",
+                                                                    b.status === 'CONFIRMED' ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                                                )}>
+                                                                    {b.payment_status || b.status}
+                                                                </span>
                                                             </div>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </section>
-
-                                        {/* Applications Overview */}
-                                        <section>
-                                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">Applications <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{userActivity.applications.length}</span></h3>
-                                            {userActivity.applications.length === 0 ? <p className="text-sm text-gray-500 italic">No applications submitted.</p> : (
-                                                <div className="grid gap-2">
-                                                    {userActivity.applications.map((a: any) => (
-                                                        <div key={a.id} className="text-sm p-3 bg-slate-50 border rounded-md">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="font-bold text-primary">{a.type}</span>
-                                                                <span className={cn(
-                                                                    "text-[10px] px-2 py-0.5 rounded-full uppercase",
-                                                                    a.status === 'APPROVED' ? "bg-green-100 text-green-700" :
-                                                                        a.status === 'REJECTED' ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
-                                                                )}>{a.status}</span>
-                                                            </div>
-                                                            <p className="text-xs text-gray-600 line-clamp-2">{a.description}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </section>
-
-                                        {/* Proposals Overview */}
-                                        <section>
-                                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">Proposals <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{userActivity.proposals.length}</span></h3>
-                                            {userActivity.proposals.length === 0 ? <p className="text-sm text-gray-500 italic">No proposals submitted.</p> : (
-                                                <div className="grid gap-2">
-                                                    {userActivity.proposals.map((p: any) => (
-                                                        <div key={p.id} className="text-sm p-3 bg-slate-50 border rounded-md">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="font-medium">{p.Event?.title}</span>
-                                                                <span className={cn(
-                                                                    "text-[10px] px-2 py-0.5 rounded-full uppercase",
-                                                                    p.status === 'APPROVED' ? "bg-green-100 text-green-700" :
-                                                                        p.status === 'REJECTED' ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
-                                                                )}>{p.status}</span>
-                                                            </div>
-                                                            <p className="text-xs text-gray-600 line-clamp-1">{p.description}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </section>
-
-                                        {/* Visa Requests Overview */}
-                                        <section>
-                                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">Visa Requests <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{userActivity.visaRequests.length}</span></h3>
-                                            {userActivity.visaRequests.length === 0 ? <p className="text-sm text-gray-500 italic">No visa requests.</p> : (
-                                                <div className="grid gap-2">
-                                                    {userActivity.visaRequests.map((v: any) => (
-                                                        <div key={v.id} className="text-sm p-3 bg-slate-50 border rounded-md flex justify-between items-center">
-                                                            <span className="font-medium text-primary">{v.Event?.title}</span>
-                                                            <span className={cn(
-                                                                "text-[10px] px-2 py-0.5 rounded-full uppercase font-bold",
-                                                                v.status === 'APPROVED' ? "text-green-600" : "text-yellow-600"
-                                                            )}>{v.status}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </section>
-                                    </>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </section>
                                 )}
                             </CardContent>
                         </>
                     )}
                 </Card>
             </div>
-        </div>
-    );
-}
-
-function VisaInvitationManager() {
-    const [requests, setRequests] = useState<VisaInvitation[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const { toast } = useToast();
-
-    useEffect(() => {
-        fetchRequests();
-    }, []);
-
-    const fetchRequests = async () => {
-        const { data, error } = await supabase
-            .from('VisaInvitation')
-            .select('*, User(*), Event(*)')
-            .order('createdAt', { ascending: false });
-
-        if (!error) setRequests(data || []);
-        setIsLoading(false);
-    };
-
-    const handleUploadLetter = async (requestId: string, file: File) => {
-        try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${requestId}.${fileExt}`;
-            const filePath = `visa-letters/${fileName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('visa-documents')
-                .upload(filePath, file, { upsert: true });
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('visa-documents')
-                .getPublicUrl(filePath);
-
-            const { error: updateError } = await supabase
-                .from('VisaInvitation')
-                .update({
-                    letterUrl: publicUrl,
-                    status: 'APPROVED'
-                })
-                .eq('id', requestId);
-
-            if (updateError) throw updateError;
-
-            toast({ title: "Letter uploaded and request approved!" });
-            fetchRequests();
-        } catch (error: any) {
-            toast({ title: "Upload failed", description: error.message, variant: "destructive" });
-        }
-    };
-
-    if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
-
-    return (
-        <div className="space-y-4">
-            <h2 className="text-xl font-bold text-primary mb-4">Visa Invitation Requests</h2>
-            {requests.length === 0 ? (
-                <p className="text-gray-500 italic">No visa requests found.</p>
-            ) : (
-                <div className="grid gap-4">
-                    {requests.map(req => (
-                        <Card key={req.id}>
-                            <CardContent className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="font-bold">{req.user?.name}</h3>
-                                        <span className={cn(
-                                            "text-[10px] px-2 py-0.5 rounded-full font-bold",
-                                            req.status === 'PAID' ? "bg-blue-100 text-blue-700" :
-                                                req.status === 'APPROVED' ? "bg-green-100 text-green-700" :
-                                                    "bg-gray-100 text-gray-700"
-                                        )}>
-                                            {req.status}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm text-gray-500">{req.user?.email}</p>
-                                    {(req.user?.phone || req.user?.country || req.user?.city || req.user?.address) && (
-                                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 my-2 bg-slate-50 p-2 rounded border">
-                                            {req.user?.phone && <span><strong className="text-slate-400">Phone:</strong> {req.user.phone}</span>}
-                                            {req.user?.country && <span><strong className="text-slate-400">Country:</strong> {req.user.country}</span>}
-                                            {req.user?.city && <span><strong className="text-slate-400">City:</strong> {req.user.city}</span>}
-                                            {req.user?.address && <span><strong className="text-slate-400">Address:</strong> {req.user.address}</span>}
-                                        </div>
-                                    )}
-                                    <div className="flex flex-wrap gap-4 text-xs mt-2 items-center">
-                                        <p className="text-primary font-medium">Event: {req.event?.title}</p>
-                                        <p className="bg-slate-100 px-2 py-1 rounded">Payment: <strong className={req.paymentStatus === 'PAID' ? "text-green-600" : "text-yellow-600"}>{req.paymentStatus === 'PAID' ? 'COMPLETED' : 'PENDING'}</strong></p>
-                                    </div>
-                                    <p className="text-[10px] text-gray-400 mt-1">Date: {format(new Date(req.createdAt), 'PPP')}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {req.letterUrl ? (
-                                        <Button variant="outline" size="sm" asChild>
-                                            <a href={req.letterUrl} target="_blank" rel="noreferrer">View Letter</a>
-                                        </Button>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="file"
-                                                className="hidden"
-                                                id={`upload-visa-${req.id}`}
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) handleUploadLetter(req.id, file);
-                                                }}
-                                            />
-                                            <Label
-                                                htmlFor={`upload-visa-${req.id}`}
-                                                className="h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md cursor-pointer flex items-center text-sm font-medium"
-                                            >
-                                                <Upload className="h-4 w-4 mr-2" /> Upload Letter
-                                            </Label>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            )}
         </div>
     );
 }
@@ -452,7 +287,6 @@ function BlogManager() {
             fetchBlogs();
             (e.target as HTMLFormElement).reset();
         } catch (error: any) {
-            console.error("[Blog] Post failed:", error);
             toast({
                 title: "Post failed",
                 description: error.message || "An unexpected error occurred",
@@ -474,125 +308,43 @@ function BlogManager() {
 
     return (
         <>
-            <Card className="lg:col-span-1">
-                <CardHeader><CardTitle>Create Post</CardTitle></CardHeader>
+            <Card className="lg:col-span-1 border-border bg-card">
+                <CardHeader><CardTitle>Create Community Story</CardTitle></CardHeader>
                 <CardContent>
                     <form onSubmit={onSubmitBlog} className="space-y-4">
-                        <Input name="title" placeholder="Title" required />
-                        <Input name="imageUrl" placeholder="Image URL (e.g. from Unsplash)" />
-                        <Textarea name="content" className="min-h-[200px]" placeholder="Content..." required />
-                        <Button type="submit" disabled={isSubmitting} className="w-full">Post Blog</Button>
+                        <Input name="title" placeholder="Story Title" required />
+                        <Input name="imageUrl" placeholder="Image URL (e.g. /images/IMG-20261026-WA0010.jpg)" />
+                        <Textarea name="content" className="min-h-[200px]" placeholder="Write outreach story..." required />
+                        <Button type="submit" disabled={isSubmitting} className="w-full font-bold">Publish Story</Button>
                     </form>
                 </CardContent>
             </Card>
             <div className="lg:col-span-2 space-y-4">
                 {blogs.map(blog => (
-                    <Card key={blog.id}>
+                    <Card key={blog.id} className="border-border bg-card">
                         <CardContent className="p-4 flex justify-between items-center">
                             <div>
-                                <h3 className="font-bold">{blog.title}</h3>
-                                <p className="text-sm text-gray-500">{format(new Date(blog.createdAt), 'PPP')}</p>
+                                <h3 className="font-bold text-foreground">{blog.title}</h3>
+                                <p className="text-sm text-muted-foreground">{format(new Date(blog.createdAt), 'PPP')}</p>
                             </div>
-                            <Button variant="ghost" className="text-red-500" onClick={() => deleteBlog(blog.id)}><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" className="text-destructive" onClick={() => deleteBlog(blog.id)}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
                         </CardContent>
                     </Card>
                 ))}
+                {blogs.length === 0 && (
+                    <p className="text-muted-foreground italic">No stories published yet.</p>
+                )}
             </div>
         </>
-    );
-}
-
-function ProposalManager() {
-    const [proposals, setProposals] = useState<any[]>([]);
-    const { toast } = useToast();
-
-    useEffect(() => {
-        fetchProposals();
-    }, []);
-
-    const fetchProposals = async () => {
-        const { data, error } = await supabase
-            .from('Proposals')
-            .select('*, User(*), Event(*)')
-            .order('createdAt', { ascending: false });
-
-        if (error) {
-            console.error("Error fetching proposals:", error);
-            return;
-        }
-
-        // Lazy auto-approval check
-        const now = new Date();
-        const updates: any[] = [];
-        const processedData = data.map(p => {
-            if (p.status === 'PENDING' && p.autoApproveAt && new Date(p.autoApproveAt) < now) {
-                updates.push(supabase.from('Proposals').update({ status: 'APPROVED' }).eq('id', p.id));
-                return { ...p, status: 'APPROVED' };
-            }
-            return p;
-        });
-
-        if (updates.length > 0) {
-            await Promise.all(updates);
-            toast({ title: "Auto-approved proposals", description: `${updates.length} pending proposals were auto-approved due to time limit.` });
-        }
-
-        setProposals(processedData);
-    };
-
-    const updateStatus = async (id: string, status: string) => {
-        const { error } = await supabase.from('Proposals').update({ status }).eq('id', id);
-        if (error) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
-        } else {
-            toast({ title: "Status updated" });
-            fetchProposals();
-        }
-    };
-
-    return (
-        <div className="space-y-4">
-            <h2 className="text-xl font-bold text-primary mb-4">Event Proposals</h2>
-            <div className="grid gap-4">
-                {proposals.map(p => (
-                    <Card key={p.id}>
-                        <CardContent className="p-4 flex flex-col md:flex-row justify-between gap-4">
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-bold">{p.User?.name}</h3>
-                                    <span className={cn(
-                                        "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
-                                        p.status === 'APPROVED' ? "bg-green-100 text-green-700" :
-                                            p.status === 'REJECTED' ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
-                                    )}>{p.status}</span>
-                                </div>
-                                <p className="text-sm text-gray-500 mb-2">{p.User?.email} • Event: {p.Event?.title}</p>
-                                <p className="text-sm bg-slate-50 p-2 rounded border">{p.description}</p>
-                                <div className="mt-2 flex items-center">
-                                    <span className="text-xs bg-slate-100 px-2 py-1 rounded text-gray-600">Payment: <strong className="text-gray-500">N/A (Free Submission)</strong></span>
-                                </div>
-                                {p.documentUrl && (
-                                    <a href={p.documentUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline mt-2 block">View Document</a>
-                                )}
-                            </div>
-                            {p.status === 'PENDING' && (
-                                <div className="flex flex-col gap-2 justify-center min-w-[120px]">
-                                    <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => updateStatus(p.id, 'APPROVED')}>Approve</Button>
-                                    <Button size="sm" variant="destructive" onClick={() => updateStatus(p.id, 'REJECTED')}>Reject</Button>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                ))}
-                {proposals.length === 0 && <p className="text-slate-500 italic">No proposals found.</p>}
-            </div>
-        </div>
     );
 }
 
 function BookingManager() {
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -623,8 +375,30 @@ function BookingManager() {
         if (error) {
             toast({ title: "Error updating status", description: error.message, variant: "destructive" });
         } else {
-            toast({ title: "Booking status updated" });
+            toast({ title: "Status updated" });
             fetchBookings();
+        }
+    };
+
+    const triggerPledgeReminder = async (bookingId: string) => {
+        setSendingReminderId(bookingId);
+        try {
+            const response = await fetch('/api/pledges/check-reminders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bookingId, force: true })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "Failed to send reminder");
+            toast({
+                title: "Pledge Reminder Sent! 🔔",
+                description: "The supporter has received a countdown reminder notification for their remaining pledge balance."
+            });
+            fetchBookings();
+        } catch (err: any) {
+            toast({ title: "Reminder Error", description: err.message, variant: "destructive" });
+        } finally {
+            setSendingReminderId(null);
         }
     };
 
@@ -632,156 +406,181 @@ function BookingManager() {
 
     return (
         <div className="space-y-4">
-            <h2 className="text-xl font-bold text-primary mb-4">Event Bookings</h2>
-            <div className="grid gap-4">
-                {bookings.map(booking => (
-                    <Card key={booking.id}>
-                        <CardContent className="p-4 flex flex-col md:flex-row justify-between gap-4">
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-bold">{booking.user?.name}</h3>
-                                    <span className={cn(
-                                        "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
-                                        booking.status === 'CONFIRMED' ? "bg-green-100 text-green-700" :
-                                            booking.status === 'CANCELLED' ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
-                                    )}>{booking.status}</span>
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
-                                        {booking.mode}
-                                    </span>
-                                </div>
-                                <p className="text-sm text-gray-500 mb-2">{booking.user?.email} • Event: {booking.event?.title}</p>
-                                {(booking.user?.phone || booking.user?.country || booking.user?.city || booking.user?.address) && (
-                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 mb-2 bg-slate-50 p-2 rounded border">
-                                        {booking.user?.phone && <span><strong className="text-slate-400">Phone:</strong> {booking.user.phone}</span>}
-                                        {booking.user?.country && <span><strong className="text-slate-400">Country:</strong> {booking.user.country}</span>}
-                                        {booking.user?.city && <span><strong className="text-slate-400">City:</strong> {booking.user.city}</span>}
-                                        {booking.user?.address && <span><strong className="text-slate-400">Address:</strong> {booking.user.address}</span>}
-                                    </div>
-                                )}
-                                <div className="flex flex-wrap gap-2 mb-2">
-                                    {booking.attendance_type && (
-                                        <span className={cn(
-                                            "text-xs px-2.5 py-0.5 rounded-full font-bold",
-                                            booking.attendance_type === 'ATTENDING' ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"
-                                        )}>
-                                            {booking.attendance_type === 'ATTENDING' ? "Attending in Person" : "Donating & Wishing Well"}
-                                        </span>
-                                    )}
-                                    {booking.delivery_method && (
-                                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
-                                            Delivery: {booking.delivery_method === 'ONLINE_DELIVERY' ? "Courier to Nairobi HQ" : "Bringing on Event Day"}
-                                        </span>
-                                    )}
-                                    {booking.seek_to_adopt && (
-                                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold">
-                                            Adoption Inquiry
-                                        </span>
-                                    )}
-                                </div>
-                                {booking.item_contributions && booking.item_contributions.length > 0 && (
-                                    <div className="text-xs text-slate-600 mb-1">
-                                        <strong>In-Kind Contributions:</strong> {booking.item_contributions.join(', ')}
-                                    </div>
-                                )}
-                                {booking.volunteer_activities && booking.volunteer_activities.length > 0 && (
-                                    <div className="text-xs text-slate-600 mb-1">
-                                        <strong>Volunteer Activities:</strong> {booking.volunteer_activities.join(', ')}
-                                    </div>
-                                )}
-                                {booking.mingle_notes && (
-                                    <p className="text-xs italic text-slate-600 bg-slate-50 p-1.5 rounded mb-1">
-                                        <strong>Activity Idea:</strong> "{booking.mingle_notes}"
-                                    </p>
-                                )}
-                                {booking.wish_note && (
-                                    <p className="text-xs italic text-slate-600 bg-amber-50/50 p-1.5 rounded border border-amber-100 mb-1">
-                                        <strong>Well Wishes:</strong> "{booking.wish_note}"
-                                    </p>
-                                )}
-                                <div className="flex flex-wrap gap-4 text-xs items-center mt-2">
-                                    <span className="text-gray-500">Category: <strong>{booking.category}</strong></span>
-                                    <span className="text-gray-500">Amount: <strong>KES {Number(booking.amountPaid || 0).toLocaleString()}</strong></span>
-                                    <span className="bg-slate-100 px-2 py-1 rounded text-gray-600">Payment: <strong className={booking.status === 'CONFIRMED' ? "text-green-600" : "text-yellow-600"}>{booking.status === 'CONFIRMED' ? 'COMPLETED' : 'PENDING'}</strong></span>
-                                    <span className="text-gray-400 text-[10px]">Date: {format(new Date(booking.createdAt), 'PPP')}</span>
-                                </div>
-                            </div>
-                            {booking.status === 'PENDING' && (
-                                <div className="flex flex-row md:flex-col gap-2 justify-center">
-                                    <Button size="sm" variant="outline" className="text-green-600 hover:text-green-700" onClick={() => updateBookingStatus(booking.id, 'CONFIRMED')}>Confirm</Button>
-                                    <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => updateBookingStatus(booking.id, 'CANCELLED')}>Cancel</Button>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                ))}
-                {bookings.length === 0 && <p className="text-slate-500 italic">No bookings found.</p>}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div>
+                    <h2 className="text-xl font-bold text-foreground">Outreach Bookings, Donations & Pledges</h2>
+                    <p className="text-xs text-muted-foreground">View registered & guest donations, in-kind contributions, and active installment pledges.</p>
+                </div>
             </div>
-        </div>
-    );
-}
-
-function ApplicationManager() {
-    const [applications, setApplications] = useState<any[]>([]);
-    const { toast } = useToast();
-
-    useEffect(() => {
-        fetchApps();
-    }, []);
-
-    const fetchApps = async () => {
-        const { data, error } = await supabase
-            .from('Applications')
-            .select('*, User(*)')
-            .order('createdAt', { ascending: false });
-        if (!error) setApplications(data || []);
-    };
-
-    const updateStatus = async (id: string, status: string) => {
-        const { error } = await supabase.from('Applications').update({ status }).eq('id', id);
-        if (error) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
-        } else {
-            toast({ title: "Status updated" });
-            fetchApps();
-        }
-    };
-
-    return (
-        <div className="space-y-4">
-            <h2 className="text-xl font-bold text-primary mb-4">Speaker & Sponsor Applications</h2>
             <div className="grid gap-4">
-                {applications.map(app => (
-                    <Card key={app.id}>
-                        <CardContent className="p-4 flex flex-col md:flex-row justify-between gap-4">
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-bold">{app.User?.name}</h3>
-                                    <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">{app.type}</span>
-                                    <span className={cn(
-                                        "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
-                                        app.status === 'APPROVED' ? "bg-green-100 text-green-700" :
-                                            app.status === 'REJECTED' ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
-                                    )}>{app.status}</span>
+                {bookings.map(booking => {
+                    const supporterUser = booking.user || booking.User;
+                    const eventRecord = booking.event || booking.Event;
+                    const displayName = supporterUser?.name || booking.guest_name || "Guest Supporter";
+                    const displayEmail = supporterUser?.email || booking.guest_email || "No email provided";
+                    const displayPhone = supporterUser?.phone || booking.guest_phone || booking.phone_number;
+                    const isPledge = !!booking.is_pledge || Number(booking.pledged_amount || 0) > 0;
+                    const pledgedTotal = Number(booking.pledged_amount || 0);
+                    const paidAmount = Number(booking.amountPaid || 0);
+                    const remainingPledge = Math.max(0, pledgedTotal - paidAmount);
+
+                    return (
+                        <Card key={booking.id} className="border-border bg-card">
+                            <CardContent className="p-5 flex flex-col md:flex-row justify-between gap-4">
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="font-bold text-foreground text-base">{displayName}</h3>
+                                        {!booking.userId && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
+                                                GUEST DONOR
+                                            </span>
+                                        )}
+                                        <span className={cn(
+                                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
+                                            booking.status === 'CONFIRMED'
+                                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                                : booking.status === 'CANCELLED'
+                                                ? "bg-destructive/15 text-destructive"
+                                                : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                        )}>{booking.status}</span>
+                                        {isPledge && (
+                                            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-bold flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />
+                                                INSTALLMENT PLEDGE ({booking.reminder_frequency || 'EVERY_3_DAYS'})
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <p className="text-sm text-muted-foreground">
+                                        {displayEmail} • Outreach: <strong className="text-foreground">{eventRecord?.title || "General Charity Support"}</strong>
+                                    </p>
+
+                                    {(displayPhone || supporterUser?.country || supporterUser?.city || supporterUser?.address) && (
+                                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground bg-muted/40 p-2.5 rounded-xl border border-border">
+                                            {displayPhone && <span><strong className="text-foreground">Phone:</strong> {displayPhone}</span>}
+                                            {supporterUser?.country && <span><strong className="text-foreground">Country:</strong> {supporterUser.country}</span>}
+                                            {supporterUser?.city && <span><strong className="text-foreground">City:</strong> {supporterUser.city}</span>}
+                                            {supporterUser?.address && <span><strong className="text-foreground">Address:</strong> {supporterUser.address}</span>}
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-2">
+                                        {booking.attendance_type && (
+                                            <span className={cn(
+                                                "text-xs px-2.5 py-0.5 rounded-full font-bold",
+                                                booking.attendance_type === 'ATTENDING'
+                                                    ? "bg-primary/10 text-primary"
+                                                    : "bg-[#b8240d]/10 text-[#b8240d]"
+                                            )}>
+                                                {booking.attendance_type === 'ATTENDING' ? "Attending in Person" : "Donating & Wishing Well"}
+                                            </span>
+                                        )}
+                                        {booking.delivery_method && (
+                                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                                                Delivery: {booking.delivery_method === 'ONLINE_DELIVERY' ? "Courier to Nairobi HQ" : "Bringing on Event Day"}
+                                            </span>
+                                        )}
+                                        {booking.seek_to_adopt && (
+                                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold">
+                                                Adoption Inquiry
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {booking.item_contributions && booking.item_contributions.length > 0 && (
+                                        <div className="text-xs text-muted-foreground">
+                                            <strong className="text-foreground">Contributions:</strong> {booking.item_contributions.join(', ')}
+                                        </div>
+                                    )}
+                                    {booking.volunteer_activities && booking.volunteer_activities.length > 0 && (
+                                        <div className="text-xs text-muted-foreground">
+                                            <strong className="text-foreground">Volunteer Activities:</strong> {booking.volunteer_activities.join(', ')}
+                                        </div>
+                                    )}
+                                    {booking.mingle_notes && (
+                                        <p className="text-xs italic text-muted-foreground bg-muted/40 p-2 rounded-lg">
+                                            <strong className="text-foreground">Activity Idea:</strong> "{booking.mingle_notes}"
+                                        </p>
+                                    )}
+                                    {booking.wish_note && (
+                                        <p className="text-xs italic text-muted-foreground bg-muted/40 p-2 rounded-lg border border-border">
+                                            <strong className="text-foreground">Well Wishes:</strong> "{booking.wish_note}"
+                                        </p>
+                                    )}
+
+                                    {isPledge && (
+                                        <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-1.5">
+                                            <div className="flex flex-wrap justify-between text-xs font-bold">
+                                                <span className="text-foreground">
+                                                    Pledge Progress: KES {paidAmount.toLocaleString()} / KES {pledgedTotal.toLocaleString()}
+                                                </span>
+                                                <span className={remainingPledge > 0 ? "text-[#b8240d]" : "text-emerald-600"}>
+                                                    {remainingPledge > 0 ? `Remaining: KES ${remainingPledge.toLocaleString()}` : "100% Fulfilled"}
+                                                </span>
+                                            </div>
+                                            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                                                <div
+                                                    className="h-full bg-primary transition-all"
+                                                    style={{ width: `${Math.min(100, pledgedTotal > 0 ? (paidAmount / pledgedTotal) * 100 : 0)}%` }}
+                                                />
+                                            </div>
+                                            {booking.installment_history && booking.installment_history.length > 0 && (
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    Installments paid ({booking.installment_history.length}):{" "}
+                                                    {booking.installment_history.map((inst: any) => `KES ${Number(inst.amount).toLocaleString()}`).join(" + ")}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-4 text-xs items-center pt-1">
+                                        <span className="text-muted-foreground">
+                                            Amount Paid: <strong className="text-foreground">KES {paidAmount.toLocaleString()}</strong>
+                                        </span>
+                                        <span className="bg-muted px-2.5 py-1 rounded-md text-muted-foreground">
+                                            Payment Status: <strong className={booking.payment_status === 'PAID' || booking.status === 'CONFIRMED' ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
+                                                {booking.payment_status || (booking.status === 'CONFIRMED' ? 'COMPLETED' : 'PENDING')}
+                                            </strong>
+                                        </span>
+                                        <span className="text-muted-foreground text-[11px]">
+                                            Date: {format(new Date(booking.createdAt), 'PPP')}
+                                        </span>
+                                    </div>
                                 </div>
-                                <p className="text-sm text-gray-500 mb-2">{app.User?.email}</p>
-                                <p className="text-sm bg-slate-50 p-2 rounded border mb-2">{app.description}</p>
-                                <div className="flex flex-wrap gap-4 text-xs items-center mt-2 mb-2">
-                                    <span className="text-gray-500">Donation: <strong>KES {Number(app.donationAmount || 0).toLocaleString()}</strong></span>
-                                    <span className="bg-slate-100 px-2 py-1 rounded text-gray-600">Payment: <strong className={app.paymentStatus === 'PAID' ? "text-green-600" : "text-yellow-600"}>{app.paymentStatus === 'PAID' ? 'COMPLETED' : 'PENDING'}</strong></span>
+
+                                <div className="flex flex-row md:flex-col gap-2 justify-center shrink-0">
+                                    {booking.status === 'PENDING' && (
+                                        <>
+                                            <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-600/30 hover:bg-emerald-500/10" onClick={() => updateBookingStatus(booking.id, 'CONFIRMED')}>
+                                                Confirm
+                                            </Button>
+                                            <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => updateBookingStatus(booking.id, 'CANCELLED')}>
+                                                Cancel
+                                            </Button>
+                                        </>
+                                    )}
+                                    {isPledge && remainingPledge > 0 && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={sendingReminderId === booking.id}
+                                            onClick={() => triggerPledgeReminder(booking.id)}
+                                            className="text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                                        >
+                                            {sendingReminderId === booking.id ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                                <Bell className="w-3.5 h-3.5 text-[#b8240d]" />
+                                            )}
+                                            Send Reminder
+                                        </Button>
+                                    )}
                                 </div>
-                                {app.documentUrl && (
-                                    <a href={app.documentUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline mt-2 block">View Document</a>
-                                )}
-                            </div>
-                            {app.status === 'PENDING' && (
-                                <div className="flex flex-col gap-2 justify-center min-w-[120px]">
-                                    <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => updateStatus(app.id, 'APPROVED')}>Approve</Button>
-                                    <Button size="sm" variant="destructive" onClick={() => updateStatus(app.id, 'REJECTED')}>Reject</Button>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                ))}
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+                {bookings.length === 0 && <p className="text-muted-foreground italic">No bookings or donations found.</p>}
             </div>
         </div>
     );
@@ -804,12 +603,11 @@ function SupportChatManager() {
 
     const cannedResponses = [
         "Hello! How can we assist you today?",
-        "Thank you for contacting World Youth Centre. We are looking into this right away.",
-        "Your request has been verified and processed.",
-        "Please check your registered email or the 'My Requests' tab for confirmation."
+        "Thank you for contacting The Voice of Hope Kenya. We are looking into this right away.",
+        "Your donation / pledge has been verified and processed.",
+        "Please check your registered email or your Dashboard for confirmation."
     ];
 
-    // Fetch conversations list
     const fetchConversations = async () => {
         try {
             const { data, error } = await supabase
@@ -820,7 +618,6 @@ function SupportChatManager() {
             if (error) throw error;
             setConversations(data || []);
 
-            // If a conversation was selected, refresh it
             if (selectedConv) {
                 const refreshed = (data || []).find((c: any) => c.id === selectedConv.id);
                 if (refreshed) setSelectedConv(refreshed);
@@ -832,7 +629,6 @@ function SupportChatManager() {
         }
     };
 
-    // Fetch messages for active conversation
     const fetchMessages = async (convId: string) => {
         try {
             const { data, error } = await supabase
@@ -844,7 +640,6 @@ function SupportChatManager() {
             if (error) throw error;
             setMessages(data || []);
 
-            // Acknowledge unread admin count
             await supabase
                 .from('SupportConversation')
                 .update({ unreadAdminCount: 0 })
@@ -861,7 +656,6 @@ function SupportChatManager() {
     useEffect(() => {
         fetchConversations();
 
-        // Subscribe to conversation updates
         const convChannel = supabase
             .channel('admin-support-conversations-sync')
             .on(
@@ -882,7 +676,6 @@ function SupportChatManager() {
         };
     }, []);
 
-    // When selected conversation changes
     useEffect(() => {
         if (!selectedConv?.id) {
             setMessages([]);
@@ -891,7 +684,6 @@ function SupportChatManager() {
 
         fetchMessages(selectedConv.id);
 
-        // Realtime subscription for incoming messages
         const msgChannel = supabase
             .channel(`admin-chat-thread-${selectedConv.id}`)
             .on(
@@ -909,7 +701,6 @@ function SupportChatManager() {
                         return [...prev, newMsg];
                     });
 
-                    // If message is from user/guest, mark read immediately while viewing
                     if (newMsg.senderRole !== 'ADMIN') {
                         supabase.from('SupportMessage').update({ isRead: true }).eq('id', newMsg.id);
                         supabase.from('SupportConversation').update({ unreadAdminCount: 0 }).eq('id', selectedConv.id);
@@ -923,12 +714,10 @@ function SupportChatManager() {
         };
     }, [selectedConv?.id]);
 
-    // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Send admin reply
     const handleSendReply = async (textToSend?: string) => {
         const text = (textToSend || replyText).trim();
         if (!text || !selectedConv?.id || isSending) return;
@@ -970,7 +759,6 @@ function SupportChatManager() {
                 setMessages((prev) => prev.map((m) => (m.id === tempId ? insertedMsg : m)));
             }
 
-            // Update conversation metadata
             await supabase
                 .from('SupportConversation')
                 .update({
@@ -980,7 +768,6 @@ function SupportChatManager() {
                 })
                 .eq('id', selectedConv.id);
 
-            // Send in-app notification if registered user
             if (selectedConv.userId) {
                 await supabase.from('Notification').insert({
                     userId: selectedConv.userId,
@@ -1000,7 +787,6 @@ function SupportChatManager() {
         }
     };
 
-    // Toggle status (Open <-> Resolved)
     const handleToggleStatus = async () => {
         if (!selectedConv) return;
         const newStatus = selectedConv.status === 'RESOLVED' ? 'OPEN' : 'RESOLVED';
@@ -1021,7 +807,6 @@ function SupportChatManager() {
         }
     };
 
-    // Filter conversations
     const filteredConversations = conversations.filter((c) => {
         const matchesStatus =
             statusFilter === 'ALL' ||
@@ -1051,33 +836,32 @@ function SupportChatManager() {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
                         <Headphones className="w-6 h-6 text-primary" /> Live Support Chat
                     </h2>
-                    <p className="text-sm text-slate-500">
-                        Communicate in real-time with users and visitors seeking assistance.
+                    <p className="text-sm text-muted-foreground">
+                        Communicate in real-time with supporters and visitors seeking assistance.
                     </p>
                 </div>
-                {/* Search & Filter */}
                 <div className="flex items-center gap-2 w-full md:w-auto">
                     <div className="relative flex-1 md:w-64">
-                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                        <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-3" />
                         <Input
                             placeholder="Search by name or email..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 bg-white"
+                            className="pl-9 bg-card"
                         />
                     </div>
-                    <div className="flex border rounded-lg overflow-hidden bg-white shadow-sm">
+                    <div className="flex border border-border rounded-lg overflow-hidden bg-card shadow-sm">
                         {(['ALL', 'OPEN', 'RESOLVED'] as const).map((filter) => (
                             <button
                                 key={filter}
                                 onClick={() => setStatusFilter(filter)}
                                 className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
                                     statusFilter === filter
-                                        ? 'bg-slate-900 text-white'
-                                        : 'text-slate-600 hover:bg-slate-100'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:bg-muted'
                                 }`}
                             >
                                 {filter}
@@ -1087,19 +871,18 @@ function SupportChatManager() {
                 </div>
             </div>
 
-            {/* Two Column Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[720px]">
-                {/* Left: Conversations List (5 Cols) */}
-                <Card className="lg:col-span-5 h-full flex flex-col overflow-hidden shadow-md border-slate-200">
-                    <CardHeader className="py-3.5 px-4 bg-slate-50/70 border-b border-slate-200 flex flex-row items-center justify-between">
-                        <CardTitle className="text-sm font-semibold text-slate-700">
+                {/* Left: Conversations List */}
+                <Card className="lg:col-span-5 h-full flex flex-col overflow-hidden shadow-md border-border bg-card">
+                    <CardHeader className="py-3.5 px-4 bg-muted/40 border-b border-border flex flex-row items-center justify-between">
+                        <CardTitle className="text-sm font-semibold text-foreground">
                             Conversations ({filteredConversations.length})
                         </CardTitle>
-                        <span className="text-xs text-slate-500 font-medium">Real-time sync active</span>
+                        <span className="text-xs text-muted-foreground font-medium">Real-time sync active</span>
                     </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto p-2 space-y-1.5 divide-y divide-slate-100">
+                    <CardContent className="flex-1 overflow-y-auto p-2 space-y-1.5 divide-y divide-border/50">
                         {filteredConversations.length === 0 ? (
-                            <div className="py-16 text-center text-slate-400">
+                            <div className="py-16 text-center text-muted-foreground">
                                 <MessageCircle className="w-10 h-10 mx-auto mb-2 opacity-40" />
                                 <p className="text-sm font-medium">No conversations found</p>
                             </div>
@@ -1117,8 +900,8 @@ function SupportChatManager() {
                                         onClick={() => setSelectedConv(conv)}
                                         className={`p-3 rounded-xl cursor-pointer transition-all ${
                                             isSelected
-                                                ? 'bg-blue-50/80 border border-blue-200 shadow-sm'
-                                                : 'hover:bg-slate-50 border border-transparent'
+                                                ? 'bg-primary/10 border border-primary/30 shadow-sm'
+                                                : 'hover:bg-muted/50 border border-transparent'
                                         }`}
                                     >
                                         <div className="flex items-start justify-between gap-2">
@@ -1126,42 +909,42 @@ function SupportChatManager() {
                                                 <div
                                                     className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
                                                         isRegistered
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'bg-emerald-600 text-white'
+                                                            ? 'bg-primary text-primary-foreground'
+                                                            : 'bg-[#b8240d] text-white'
                                                     }`}
                                                 >
                                                     {displayName.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-1.5">
-                                                        <h4 className="font-semibold text-sm text-slate-900 truncate">
+                                                        <h4 className="font-semibold text-sm text-foreground truncate">
                                                             {displayName}
                                                         </h4>
                                                         <span
                                                             className={`text-[9px] font-semibold px-1.5 py-0.2 rounded ${
                                                                 isRegistered
-                                                                    ? 'bg-blue-100 text-blue-700'
-                                                                    : 'bg-emerald-100 text-emerald-700'
+                                                                    ? 'bg-primary/15 text-primary'
+                                                                    : 'bg-[#b8240d]/15 text-[#b8240d]'
                                                             }`}
                                                         >
                                                             {isRegistered ? 'User' : 'Guest'}
                                                         </span>
                                                     </div>
-                                                    <p className="text-xs text-slate-500 truncate">{displayEmail}</p>
+                                                    <p className="text-xs text-muted-foreground truncate">{displayEmail}</p>
                                                 </div>
                                             </div>
 
                                             <div className="flex flex-col items-end gap-1 shrink-0">
-                                                <span className="text-[10px] text-slate-400">
+                                                <span className="text-[10px] text-muted-foreground">
                                                     {conv.lastMessageAt ? format(new Date(conv.lastMessageAt), 'p') : ''}
                                                 </span>
                                                 {conv.unreadAdminCount > 0 && (
-                                                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                                                    <span className="bg-[#b8240d] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
                                                         {conv.unreadAdminCount} new
                                                     </span>
                                                 )}
                                                 {isResolved && (
-                                                    <span className="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium">
+                                                    <span className="text-[9px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">
                                                         Resolved
                                                     </span>
                                                 )}
@@ -1174,16 +957,15 @@ function SupportChatManager() {
                     </CardContent>
                 </Card>
 
-                {/* Right: Active Chat Thread (7 Cols) */}
-                <Card className="lg:col-span-7 h-full flex flex-col overflow-hidden shadow-md border-slate-200">
+                {/* Right: Active Chat Thread */}
+                <Card className="lg:col-span-7 h-full flex flex-col overflow-hidden shadow-md border-border bg-card">
                     {selectedConv ? (
                         <>
-                            {/* Chat Header */}
-                            <div className="p-4 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between">
+                            <div className="p-4 bg-muted/40 border-b border-border flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div
                                         className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white ${
-                                            selectedConv.userId ? 'bg-blue-600' : 'bg-emerald-600'
+                                            selectedConv.userId ? 'bg-primary' : 'bg-[#b8240d]'
                                         }`}
                                     >
                                         {(selectedConv.User?.name || selectedConv.guestName || 'U')
@@ -1192,20 +974,20 @@ function SupportChatManager() {
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h3 className="font-bold text-base text-slate-900">
+                                            <h3 className="font-bold text-base text-foreground">
                                                 {selectedConv.User?.name || selectedConv.guestName || 'Anonymous Visitor'}
                                             </h3>
                                             <span
                                                 className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                                                     selectedConv.status === 'RESOLVED'
-                                                        ? 'bg-slate-200 text-slate-700'
-                                                        : 'bg-emerald-100 text-emerald-800'
+                                                        ? 'bg-muted text-muted-foreground'
+                                                        : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                                                 }`}
                                             >
                                                 {selectedConv.status}
                                             </span>
                                         </div>
-                                        <p className="text-xs text-slate-500">
+                                        <p className="text-xs text-muted-foreground">
                                             {selectedConv.User?.email || selectedConv.guestEmail || 'No email registered'}
                                         </p>
                                     </div>
@@ -1222,10 +1004,9 @@ function SupportChatManager() {
                                 </div>
                             </div>
 
-                            {/* Messages Container */}
-                            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/20">
                                 {messages.length === 0 ? (
-                                    <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
                                         No messages in this conversation yet.
                                     </div>
                                 ) : (
@@ -1237,26 +1018,26 @@ function SupportChatManager() {
                                                 className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'} space-y-1`}
                                             >
                                                 <div className="flex items-center gap-1.5 px-1">
-                                                    <span className="text-[11px] font-medium text-slate-500">
+                                                    <span className="text-[11px] font-medium text-muted-foreground">
                                                         {isAdmin ? 'Admin (' + (msg.senderName || 'You') + ')' : msg.senderName}
                                                     </span>
-                                                    <span className="text-[10px] text-slate-400">
+                                                    <span className="text-[10px] text-muted-foreground">
                                                         {msg.createdAt ? format(new Date(msg.createdAt), 'p') : ''}
                                                     </span>
                                                 </div>
                                                 <div
                                                     className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                                                         isAdmin
-                                                            ? 'bg-blue-600 text-white rounded-tr-none shadow-sm'
-                                                            : 'bg-white text-slate-900 border border-slate-200 rounded-tl-none shadow-sm'
+                                                            ? 'bg-primary text-primary-foreground rounded-tr-none shadow-sm'
+                                                            : 'bg-card text-foreground border border-border rounded-tl-none shadow-sm'
                                                     }`}
                                                 >
                                                     <p className="whitespace-pre-wrap break-words">{msg.message}</p>
                                                 </div>
                                                 {isAdmin && (
-                                                    <div className="flex items-center gap-1 pr-1 text-[10px] text-slate-400">
+                                                    <div className="flex items-center gap-1 pr-1 text-[10px] text-muted-foreground">
                                                         {msg.isRead ? (
-                                                            <span className="flex items-center gap-0.5 text-blue-600 font-medium">
+                                                            <span className="flex items-center gap-0.5 text-primary font-medium">
                                                                 <CheckCheck className="w-3 h-3" /> Seen by user
                                                             </span>
                                                         ) : (
@@ -1273,26 +1054,24 @@ function SupportChatManager() {
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            {/* Canned Responses */}
-                            <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center gap-2 overflow-x-auto">
-                                <span className="text-[11px] font-semibold text-slate-500 shrink-0">Quick reply:</span>
+                            <div className="px-4 py-2 bg-muted/40 border-t border-border flex items-center gap-2 overflow-x-auto">
+                                <span className="text-[11px] font-semibold text-muted-foreground shrink-0">Quick reply:</span>
                                 {cannedResponses.map((canned, i) => (
                                     <button
                                         key={i}
                                         type="button"
                                         onClick={() => handleSendReply(canned)}
-                                        className="text-xs px-2.5 py-1 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg whitespace-nowrap text-slate-700 transition-colors shadow-2xs"
+                                        className="text-xs px-2.5 py-1 bg-card hover:bg-muted border border-border rounded-lg whitespace-nowrap text-foreground transition-colors"
                                     >
                                         {canned.length > 32 ? canned.substring(0, 32) + '...' : canned}
                                     </button>
                                 ))}
                             </div>
 
-                            {/* Reply Input Bar */}
-                            <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
+                            <div className="p-3 bg-card border-t border-border flex items-center gap-2">
                                 <Input
                                     ref={replyInputRef}
-                                    placeholder="Type your reply to user... (Press Enter to send)"
+                                    placeholder="Type your reply to supporter... (Press Enter to send)"
                                     value={replyText}
                                     onChange={(e) => setReplyText(e.target.value)}
                                     onKeyDown={(e) => {
@@ -1302,12 +1081,12 @@ function SupportChatManager() {
                                         }
                                     }}
                                     disabled={isSending}
-                                    className="flex-1 bg-slate-50 border-slate-200 focus:bg-white"
+                                    className="flex-1"
                                 />
                                 <Button
                                     onClick={() => handleSendReply()}
                                     disabled={!replyText.trim() || isSending}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                                    className="shrink-0"
                                 >
                                     {isSending ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -1318,13 +1097,13 @@ function SupportChatManager() {
                             </div>
                         </>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
-                            <Headphones className="w-12 h-12 mb-3 text-slate-300" />
-                            <h4 className="font-semibold text-slate-700 text-base mb-1">
+                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
+                            <Headphones className="w-12 h-12 mb-3 opacity-30" />
+                            <h4 className="font-semibold text-foreground text-base mb-1">
                                 No Conversation Selected
                             </h4>
-                            <p className="text-xs text-slate-400 max-w-sm">
-                                Select a conversation from the left to read user inquiries and send live responses.
+                            <p className="text-xs text-muted-foreground max-w-sm">
+                                Select a conversation from the left to read supporter inquiries and send live responses.
                             </p>
                         </div>
                     )}
@@ -1335,7 +1114,6 @@ function SupportChatManager() {
 }
 
 export default function AdminDashboard() {
-    const { user, profile } = useAuth();
     const { toast } = useToast();
     const [events, setEvents] = useState<Event[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1345,9 +1123,17 @@ export default function AdminDashboard() {
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     const [heroImageFile, setHeroImageFile] = useState<File | null>(null);
     const [heroImagePreview, setHeroImagePreview] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'events' | 'bookings' | 'blogs' | 'visa' | 'proposals' | 'applications' | 'users' | 'support'>('events');
+    const [activeTab, setActiveTab] = useState<'events' | 'bookings' | 'blogs' | 'users' | 'support'>('events');
     const [supportUnreadCount, setSupportUnreadCount] = useState(0);
     const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+
+    const [activities, setActivities] = useState<any[]>([]);
+    const [speakers, setSpeakers] = useState<any[]>([]);
+    const [faqs, setFaqs] = useState<any[]>([]);
+    const [features, setFeatures] = useState<string[]>([]);
+    const [journey, setJourney] = useState({ arrival: "", expectations: "" });
+    const [acceptedContributions, setAcceptedContributions] = useState<string[]>(ALL_CONTRIBUTION_OPTIONS);
+    const [volunteerRoles, setVolunteerRoles] = useState<string[]>(ALL_VOLUNTEER_ROLES);
 
     useEffect(() => {
         fetchEvents();
@@ -1419,12 +1205,10 @@ export default function AdminDashboard() {
     };
 
     const uploadSingleImage = async (file: File, folder: string = "events"): Promise<string> => {
-        console.log(`[Upload] Starting upload for ${file.name} to ${folder}...`);
         const fileExt = file.name.split('.').pop();
         const fileName = `${Math.random()}.${fileExt}`;
         const filePath = `${folder}/${fileName}`;
 
-        // Add a 30s timeout to prevent infinite hangs
         const uploadPromise = supabase.storage
             .from('event-media')
             .upload(filePath, file);
@@ -1434,62 +1218,34 @@ export default function AdminDashboard() {
         );
 
         const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as any;
-
-        if (uploadError) {
-            console.error(`[Upload] Error uploading ${file.name}:`, uploadError);
-            throw uploadError;
-        }
+        if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
             .from('event-media')
             .getPublicUrl(filePath);
 
-        console.log(`[Upload] Successfully uploaded ${file.name}. URL: ${publicUrl}`);
         return publicUrl;
     };
 
     const uploadImages = async (): Promise<string[]> => {
-        const urls: string[] = [];
-        if (selectedImages.length === 0) {
-            console.log("[Upload] No gallery images selected.");
-            return [];
-        }
-
+        if (selectedImages.length === 0) return [];
         if (selectedImages.length > 10) {
             const msg = "Maximum 10 gallery images allowed.";
-            console.warn(`[Upload] ${msg}`);
             toast({ title: "Upload limit", description: msg, variant: "destructive" });
             throw new Error(msg);
         }
 
-        console.log(`[Upload] Starting parallel upload for ${selectedImages.length} gallery images...`);
         setUploading(true);
         try {
             const uploadPromises = selectedImages.map(file => uploadSingleImage(file, "events"));
-            const results = await Promise.all(uploadPromises);
-            urls.push(...results);
-            console.log("[Upload] Parallel batch upload completed successfully.");
+            return await Promise.all(uploadPromises);
         } catch (error: any) {
-            console.error("[Upload] Batch upload failed:", error);
-            // Even if one fails, we might still have some URLs if we used Promise.allSettled, 
-            // but for consistency we fail the whole batch if any single upload fails.
             toast({ title: "Upload failed", description: error.message, variant: "destructive" });
             throw error;
         } finally {
             setUploading(false);
         }
-        return urls;
     };
-
-    const [activities, setActivities] = useState<any[]>([]);
-    const [speakers, setSpeakers] = useState<any[]>([]);
-    const [faqs, setFaqs] = useState<any[]>([]);
-    const [features, setFeatures] = useState<string[]>([]);
-    const [benefits, setBenefits] = useState<any[]>([]);
-    const [alignment, setAlignment] = useState({ title: "", description: "" });
-    const [journey, setJourney] = useState({ arrival: "", expectations: "" });
-    const [acceptedContributions, setAcceptedContributions] = useState<string[]>(ALL_CONTRIBUTION_OPTIONS);
-    const [volunteerRoles, setVolunteerRoles] = useState<string[]>(ALL_VOLUNTEER_ROLES);
 
     const toggleContribution = (item: string) => {
         setAcceptedContributions(prev =>
@@ -1509,15 +1265,12 @@ export default function AdminDashboard() {
         setSpeakers(event.speakers || []);
         setFaqs(event.faqs || []);
         setFeatures(event.features || []);
-        setBenefits(event.benefits || []);
-        setAlignment(event.alignment || { title: "", description: "" });
         setJourney(event.journey || { arrival: "", expectations: "" });
         setAcceptedContributions(event.accepted_contributions && event.accepted_contributions.length > 0 ? event.accepted_contributions : ALL_CONTRIBUTION_OPTIONS);
         setVolunteerRoles(event.volunteer_roles && event.volunteer_roles.length > 0 ? event.volunteer_roles : ALL_VOLUNTEER_ROLES);
         setHeroImagePreview(event.heroImageUrl || null);
         setHeroImageFile(null);
 
-        // Populate standard form fields
         const form = document.querySelector('form') as HTMLFormElement;
         if (form) {
             const titleInput = form.querySelector('#title') as HTMLInputElement;
@@ -1526,12 +1279,11 @@ export default function AdminDashboard() {
             const priceInput = form.querySelector('#price') as HTMLInputElement;
             const locationInput = form.querySelector('#location') as HTMLInputElement;
             const descriptionInput = form.querySelector('#description') as HTMLTextAreaElement;
-            const selfFundedInput = form.querySelector('#self_funded_seats') as HTMLInputElement;
-            const partiallyFundedInput = form.querySelector('#partially_funded_seats') as HTMLInputElement;
-            const fullyFundedInput = form.querySelector('#fully_funded_seats') as HTMLInputElement;
             const targetAmountInput = form.querySelector('#target_amount') as HTMLInputElement;
             const organizerContactInput = form.querySelector('#organizer_contact') as HTMLInputElement;
             const youtubeVideoUrlInput = form.querySelector('#youtube_video_url') as HTMLInputElement;
+            const typeInput = form.querySelector('#type') as HTMLSelectElement;
+            const meetingLinkInput = form.querySelector('#meeting_link') as HTMLInputElement;
 
             if (titleInput) titleInput.value = event.title;
             if (themeInput) themeInput.value = event.theme || "";
@@ -1539,20 +1291,10 @@ export default function AdminDashboard() {
             if (priceInput) priceInput.value = event.price?.toString() || "0";
             if (locationInput) locationInput.value = event.location || "";
             if (descriptionInput) descriptionInput.value = event.description || "";
-            if (selfFundedInput) selfFundedInput.value = event.self_funded_seats?.toString() || "0";
-            if (partiallyFundedInput) partiallyFundedInput.value = event.partially_funded_seats?.toString() || "0";
-            if (fullyFundedInput) fullyFundedInput.value = event.fully_funded_seats?.toString() || "0";
             if (targetAmountInput) targetAmountInput.value = event.target_amount?.toString() || "0";
             if (organizerContactInput) organizerContactInput.value = event.organizer_contact || "+254 798 182 108 / +254 798 332 690";
             if (youtubeVideoUrlInput) youtubeVideoUrlInput.value = event.youtube_video_url || "";
-
-            const requiresProposalInput = form.querySelector('#requires_proposal') as HTMLInputElement;
-            if (requiresProposalInput) requiresProposalInput.checked = !!event.requires_proposal;
-
-            const typeInput = form.querySelector('#type') as HTMLSelectElement;
             if (typeInput) typeInput.value = event.type || "PHYSICAL";
-
-            const meetingLinkInput = form.querySelector('#meeting_link') as HTMLInputElement;
             if (meetingLinkInput) meetingLinkInput.value = event.meeting_link || "";
         }
 
@@ -1565,8 +1307,6 @@ export default function AdminDashboard() {
         setSpeakers([]);
         setFaqs([]);
         setFeatures([]);
-        setBenefits([]);
-        setAlignment({ title: "", description: "" });
         setJourney({ arrival: "", expectations: "" });
         setAcceptedContributions(ALL_CONTRIBUTION_OPTIONS);
         setVolunteerRoles(ALL_VOLUNTEER_ROLES);
@@ -1580,7 +1320,6 @@ export default function AdminDashboard() {
 
     const onSubmitEvent = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        console.log("[Submit] Event submission started...");
         setIsSubmitting(true);
 
         const formData = new FormData(e.currentTarget);
@@ -1590,185 +1329,100 @@ export default function AdminDashboard() {
         const dateStr = formData.get('date') as string;
         const location = formData.get('location') as string;
         const priceStr = formData.get('price') as string;
-        const selfFundedSeats = formData.get('self_funded_seats') as string;
-        const partiallyFundedSeats = formData.get('partially_funded_seats') as string;
-        const fullyFundedSeats = formData.get('fully_funded_seats') as string;
-        const requiresProposal = formData.get('requires_proposal') === 'on';
-        const type = formData.get('type') as string;
+        const type = (formData.get('type') as string) || 'PHYSICAL';
         const meetingLink = formData.get('meeting_link') as string;
         const targetAmountStr = formData.get('target_amount') as string;
         const organizerContact = formData.get('organizer_contact') as string;
         const youtubeVideoUrl = formData.get('youtube_video_url') as string;
 
         try {
-            console.log("[Submit] Validating form data...");
-            if (!dateStr) throw new Error("Please select a date for the event.");
-
+            if (!dateStr) throw new Error("Please select a date for the outreach event.");
             const eventDate = new Date(dateStr);
             if (isNaN(eventDate.getTime())) throw new Error("Invalid date selected.");
 
-            console.log("[Submit] Processing image uploads...");
             setUploading(true);
 
             let finalHeroImageUrl = editingEvent?.heroImageUrl || "";
             if (heroImageFile) {
-                console.log("[Submit] Uploading hero image...");
-                try {
-                    finalHeroImageUrl = await uploadSingleImage(heroImageFile, "events");
-                } catch (err: any) {
-                    console.error("[Submit] Hero image upload failed:", err);
-                    throw new Error(`Hero image upload failed: ${err.message}`);
-                }
+                finalHeroImageUrl = await uploadSingleImage(heroImageFile, "events");
             } else if (!editingEvent) {
-                throw new Error("A hero image is required for new events.");
+                throw new Error("A hero image is required for new outreach events.");
             }
 
-            let imageUrls: string[] = [];
-            try {
-                imageUrls = await uploadImages();
-                console.log(`[Submit] Image uploads completed. Count: ${imageUrls.length}`);
-            } catch (err: any) {
-                console.error("[Submit] Image upload phase failed:", err);
-                throw new Error(`Media upload failed: ${err.message}`);
-            }
+            const imageUrls = await uploadImages();
 
-            console.log("[Submit] Processing speaker image uploads...");
-            // Upload speaker images
-            const speakersWithImages = await Promise.all(speakers.map(async (s, idx) => {
-                try {
-                    if (s.imageFile) {
-                        console.log(`[Submit] Uploading image for speaker ${idx + 1}: ${s.name}`);
-                        const url = await uploadSingleImage(s.imageFile, "speakers");
-                        const { imageFile, ...rest } = s;
-                        return { ...rest, imageUrl: url };
-                    }
+            const speakersWithImages = await Promise.all(speakers.map(async (s) => {
+                if (s.imageFile) {
+                    const url = await uploadSingleImage(s.imageFile, "speakers");
                     const { imageFile, ...rest } = s;
-                    return rest;
-                } catch (err: any) {
-                    console.error(`[Submit] Speaker ${idx + 1} image upload failed:`, err);
-                    throw new Error(`Speaker image upload failed: ${err.message}`);
+                    return { ...rest, imageUrl: url };
                 }
+                const { imageFile, ...rest } = s;
+                return rest;
             }));
 
-            if (editingEvent) {
-                console.log("[Submit] Updating event record in Supabase...");
-                // Merge images for editing: keep existing if no new ones, or append/replace as logic dictates.
-                // For now, we'll keep existing ones and ONLY add new ones if provided.
-                const finalImageUrls = imageUrls.length > 0 ? [...(editingEvent.imageUrls || []), ...imageUrls] : (editingEvent.imageUrls || []);
+            const eventPayload = {
+                title,
+                theme,
+                description,
+                date: eventDate.toISOString(),
+                location,
+                price: parseFloat(priceStr) || 0,
+                heroImageUrl: finalHeroImageUrl,
+                activities,
+                speakers: speakersWithImages,
+                faqs,
+                features: features.filter(f => f.trim().length > 0),
+                journey,
+                type,
+                meeting_link: meetingLink,
+                target_amount: parseFloat(targetAmountStr) || 0,
+                organizer_contact: organizerContact || "+254 798 182 108 / +254 798 332 690",
+                youtube_video_url: youtubeVideoUrl || "",
+                accepted_contributions: acceptedContributions.length > 0 ? acceptedContributions : ALL_CONTRIBUTION_OPTIONS,
+                volunteer_roles: volunteerRoles.length > 0 ? volunteerRoles : ALL_VOLUNTEER_ROLES,
+            };
 
+            if (editingEvent) {
+                const finalImageUrls = imageUrls.length > 0 ? [...(editingEvent.imageUrls || []), ...imageUrls] : (editingEvent.imageUrls || []);
                 const { error } = await supabase
                     .from('Event')
                     .update({
-                        title,
-                        theme,
-                        description,
-                        date: eventDate.toISOString(),
-                        location,
-                        price: parseFloat(priceStr) || 0,
-                        heroImageUrl: finalHeroImageUrl,
+                        ...eventPayload,
                         imageUrls: finalImageUrls,
-                        activities,
-                        speakers: speakersWithImages,
-                        faqs,
-                        features,
-                        benefits,
-                        alignment,
-                        journey,
-                        self_funded_seats: parseInt(selfFundedSeats) || 0,
-                        partially_funded_seats: parseInt(partiallyFundedSeats) || 0,
-                        fully_funded_seats: parseInt(fullyFundedSeats) || 0,
-                        requires_proposal: requiresProposal,
-                        type: type,
-                        meeting_link: meetingLink,
-                        target_amount: parseFloat(targetAmountStr) || 0,
-                        organizer_contact: organizerContact || "+254 798 182 108 / +254 798 332 690",
-                        youtube_video_url: youtubeVideoUrl || "",
-                        accepted_contributions: acceptedContributions,
-                        volunteer_roles: volunteerRoles,
                     })
                     .eq('id', editingEvent.id);
 
-                if (error) {
-                    console.error("[Submit] Supabase Update Error:", error);
-                    throw error;
-                }
-                toast({ title: "Event updated successfully!" });
+                if (error) throw error;
+                toast({ title: "Outreach event updated successfully!" });
             } else {
-                console.log("[Submit] Inserting event record into Supabase...");
                 const { error } = await supabase
                     .from('Event')
                     .insert({
-                        title,
-                        theme,
-                        description,
-                        date: eventDate.toISOString(),
-                        location,
-                        price: parseFloat(priceStr) || 0,
-                        heroImageUrl: finalHeroImageUrl,
-                        imageUrls: imageUrls,
-                        activities,
-                        speakers: speakersWithImages,
-                        faqs,
-                        features,
-                        benefits,
-                        alignment,
-                        journey,
-                        self_funded_seats: parseInt(selfFundedSeats) || 0,
-                        partially_funded_seats: parseInt(partiallyFundedSeats) || 0,
-                        fully_funded_seats: parseInt(fullyFundedSeats) || 0,
-                        requires_proposal: requiresProposal,
-                        type: type,
-                        meeting_link: meetingLink,
-                        target_amount: parseFloat(targetAmountStr) || 0,
-                        organizer_contact: organizerContact || "+254 798 182 108 / +254 798 332 690",
-                        youtube_video_url: youtubeVideoUrl || "",
-                        accepted_contributions: acceptedContributions.length > 0 ? acceptedContributions : ALL_CONTRIBUTION_OPTIONS,
-                        volunteer_roles: volunteerRoles.length > 0 ? volunteerRoles : ALL_VOLUNTEER_ROLES,
+                        ...eventPayload,
+                        imageUrls,
                     });
 
-                if (error) {
-                    console.error("[Submit] Supabase Insert Error:", error);
-                    throw error;
-                }
-                toast({ title: "Event created successfully!" });
+                if (error) throw error;
+                toast({ title: "Outreach event created successfully!" });
             }
 
-            console.log("[Submit] Success! Refreshing list...");
             await fetchEvents();
-
-            console.log("[Submit] Resetting form state...");
-            (e.target as HTMLFormElement).reset();
-            setEditingEvent(null);
-            setSelectedImages([]);
-            setImagePreviews([]);
-            setHeroImageFile(null);
-            setHeroImagePreview(null);
-            setActivities([]);
-            setSpeakers([]);
-            setFaqs([]);
-            setFeatures([]);
-            setBenefits([]);
-            setAlignment({ title: "", description: "" });
-            setJourney({ arrival: "", expectations: "" });
-            setAcceptedContributions(ALL_CONTRIBUTION_OPTIONS);
-            setVolunteerRoles(ALL_VOLUNTEER_ROLES);
-            console.log("[Submit] Form submission completed successfully.");
+            cancelEdit();
         } catch (error: any) {
-            console.error("[Submit] Error during event creation:", error);
             toast({
-                title: "Error creating event",
+                title: "Error saving outreach event",
                 description: error.message || "An unexpected error occurred",
                 variant: "destructive"
             });
         } finally {
             setIsSubmitting(false);
             setUploading(false);
-            console.log("[Submit] isSubmitting and uploading states reset.");
         }
     };
 
     const deleteEvent = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this event?")) return;
+        if (!confirm("Are you sure you want to delete this outreach event?")) return;
 
         try {
             const { error } = await supabase
@@ -1785,55 +1439,40 @@ export default function AdminDashboard() {
     };
 
     if (isLoading) {
-        return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin h-8 w-8" /></div>;
+        return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold text-primary">Admin Dashboard</h1>
-                <div className="flex space-x-2">
+        <div className="container mx-auto px-4 py-8 min-h-screen bg-background text-foreground">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <div>
+                    <h1 className="text-3xl font-black text-foreground">Admin Control Center</h1>
+                    <p className="text-sm text-muted-foreground">Manage charity outreach missions, donations, installment pledges, stories, and live support.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
                     <Button
                         variant={activeTab === 'events' ? 'default' : 'outline'}
                         onClick={() => setActiveTab('events')}
                     >
-                        Events
+                        Outreach Events
                     </Button>
                     <Button
                         variant={activeTab === 'bookings' ? 'default' : 'outline'}
                         onClick={() => setActiveTab('bookings')}
                     >
-                        Bookings
+                        Donations & Pledges
                     </Button>
                     <Button
                         variant={activeTab === 'blogs' ? 'default' : 'outline'}
                         onClick={() => setActiveTab('blogs')}
                     >
-                        Blogs
-                    </Button>
-                    <Button
-                        variant={activeTab === 'visa' ? 'default' : 'outline'}
-                        onClick={() => setActiveTab('visa')}
-                    >
-                        Visa Requests
-                    </Button>
-                    <Button
-                        variant={activeTab === 'proposals' ? 'default' : 'outline'}
-                        onClick={() => setActiveTab('proposals')}
-                    >
-                        Proposals
-                    </Button>
-                    <Button
-                        variant={activeTab === 'applications' ? 'default' : 'outline'}
-                        onClick={() => setActiveTab('applications')}
-                    >
-                        Applications
+                        Stories & Blogs
                     </Button>
                     <Button
                         variant={activeTab === 'users' ? 'default' : 'outline'}
                         onClick={() => setActiveTab('users')}
                     >
-                        Users
+                        Supporters
                     </Button>
                     <Button
                         variant={activeTab === 'support' ? 'default' : 'outline'}
@@ -1843,7 +1482,7 @@ export default function AdminDashboard() {
                         <Headphones className="w-4 h-4" />
                         <span>Live Support</span>
                         {supportUnreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full animate-pulse">
+                            <span className="bg-[#b8240d] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full animate-pulse">
                                 {supportUnreadCount}
                             </span>
                         )}
@@ -1852,183 +1491,110 @@ export default function AdminDashboard() {
             </div>
 
             {activeTab === 'support' && <SupportChatManager />}
-            {activeTab === 'proposals' && <ProposalManager />}
-            {activeTab === 'applications' && <ApplicationManager />}
             {activeTab === 'users' && <UserManager />}
             {activeTab === 'bookings' && <BookingManager />}
 
-
             {activeTab === 'events' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Event Form */}
-                    <Card className="lg:col-span-1">
+                    {/* Streamlined Charity Outreach Event Form */}
+                    <Card className="lg:col-span-1 border-border bg-card">
                         <CardHeader>
-                            <CardTitle>{editingEvent ? "Edit Event" : "Create New Event"}</CardTitle>
+                            <CardTitle>{editingEvent ? "Edit Outreach Event" : "Create Outreach Event"}</CardTitle>
                             <CardDescription>
-                                {editingEvent ? `Modifying: ${editingEvent.title}` : "Add a past or upcoming event to the gallery."}
+                                {editingEvent ? `Modifying: ${editingEvent.title}` : "Schedule an upcoming charity visit or archive a past outreach mission."}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={onSubmitEvent} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="title">Event Title</Label>
-                                    <Input id="title" name="title" required placeholder="Global Youth Summit" />
+                                    <Label htmlFor="title">Outreach Title</Label>
+                                    <Input id="title" name="title" required placeholder="e.g. Kayole Children's Home Visit & Cooking" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="theme">Event Theme</Label>
-                                    <Input id="theme" name="theme" placeholder="Climate Action & Sustainability" />
+                                    <Label htmlFor="theme">Mission Theme / Tagline</Label>
+                                    <Input id="theme" name="theme" placeholder="e.g. Compassion in Action — Sharing Warm Meals" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="date">Date</Label>
+                                        <Label htmlFor="date">Event Date</Label>
                                         <Input id="date" name="date" type="date" required />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="price">Price / Suggested Contribution (KES)</Label>
-                                        <Input id="price" name="price" type="number" step="1" placeholder="0" />
+                                        <Label htmlFor="price">Suggested Donation (KES)</Label>
+                                        <Input id="price" name="price" type="number" step="1" placeholder="0 (Open Voluntary)" defaultValue="0" />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="type">Event Type</Label>
+                                        <Label htmlFor="type">Participation Mode</Label>
                                         <select
                                             id="type"
                                             name="type"
-                                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                             defaultValue="PHYSICAL"
                                         >
-                                            <option value="PHYSICAL">Physical Only</option>
-                                            <option value="VIRTUAL">Virtual Only</option>
-                                            <option value="BOTH">Both Physical & Virtual</option>
+                                            <option value="PHYSICAL">In-Person & Remote Donations</option>
+                                            <option value="BOTH">Hybrid (In-Person + Livestream)</option>
+                                            <option value="VIRTUAL">Virtual / Remote Fundraising</option>
                                         </select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="meeting_link">Meeting/Virtual Link</Label>
-                                        <Input id="meeting_link" name="meeting_link" placeholder="Zoom/Google Meet link" />
+                                        <Label htmlFor="meeting_link">Livestream / Coord Link (Optional)</Label>
+                                        <Input id="meeting_link" name="meeting_link" placeholder="WhatsApp Group / Meet Link" />
                                     </div>
                                 </div>
 
-                                <div className="flex items-center space-x-2 py-2">
-                                    <input
-                                        type="checkbox"
-                                        id="requires_proposal"
-                                        name="requires_proposal"
-                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary accent-primary"
-                                    />
-                                    <Label htmlFor="requires_proposal" className="cursor-pointer">Requires Proposal Submission</Label>
-                                </div>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="self_funded_seats">Self Funded Seats</Label>
-                                        <Input id="self_funded_seats" name="self_funded_seats" type="number" defaultValue="0" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="partially_funded_seats">Partially Funded Seats</Label>
-                                        <Input id="partially_funded_seats" name="partially_funded_seats" type="number" defaultValue="0" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="fully_funded_seats">Fully Funded Seats</Label>
-                                        <Input id="fully_funded_seats" name="fully_funded_seats" type="number" defaultValue="0" />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4 border-t pt-4">
-                                    <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Admission Benefits</h3>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setBenefits([...benefits, { category: 'SELF_FUNDED', description: "" }])}>
-                                        Add Benefit
-                                    </Button>
-                                    {benefits.map((b, idx) => (
-                                        <Card key={idx} className="p-4 space-y-3 bg-muted/20 border-primary/10">
-                                            <div className="flex justify-between items-center gap-2">
-                                                <div className="space-y-1 flex-1">
-                                                    <label className="text-xs font-semibold text-muted-foreground">Category</label>
-                                                    <select
-                                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                        value={b.category}
-                                                        onChange={e => {
-                                                            const newB = [...benefits];
-                                                            newB[idx].category = e.target.value;
-                                                            setBenefits(newB);
-                                                        }}
-                                                    >
-                                                        <option value="SELF_FUNDED">Self Funded</option>
-                                                        <option value="PARTIALLY_FUNDED">Partially Funded</option>
-                                                        <option value="FULLY_FUNDED">Fully Funded</option>
-                                                    </select>
-                                                </div>
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => setBenefits(benefits.filter((_, i) => i !== idx))} className="text-destructive hover:bg-destructive/10 mt-6">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-xs font-semibold text-muted-foreground">Description</label>
-                                                <Input
-                                                    placeholder="e.g. Flight + Accommodation included"
-                                                    value={b.description}
-                                                    className="bg-background"
-                                                    onChange={e => {
-                                                        const newB = [...benefits];
-                                                        newB[idx].description = e.target.value;
-                                                        setBenefits(newB);
-                                                    }}
-                                                />
-                                            </div>
-                                        </Card>
-                                    ))}
+                                <div className="space-y-2">
+                                    <Label htmlFor="location">Outreach Location / Venue</Label>
+                                    <Input id="location" name="location" required placeholder="e.g. Nairobi, Kenya" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="location">Location</Label>
-                                    <Input id="location" name="location" placeholder="Nairobi, Kenya" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="description" className="text-primary font-semibold">Overview/About</Label>
+                                    <Label htmlFor="description" className="font-semibold">Mission Overview & Needs</Label>
                                     <Textarea
                                         id="description"
                                         name="description"
                                         required
-                                        placeholder="Brief summary of the event..."
+                                        placeholder="Describe the children's home or community we are visiting, what we will cook/distribute, and how supporters can help..."
                                     />
                                 </div>
 
                                 {/* Charity Outreach & Contributions Configuration */}
-                                <div className="space-y-4 border-t pt-4 bg-slate-50/60 p-4 rounded-lg border border-slate-200">
+                                <div className="space-y-4 border-t border-border pt-4 bg-muted/30 p-4 rounded-xl border">
                                     <div className="flex items-center gap-2">
-                                        <Heart className="w-5 h-5 text-accent fill-accent/20" />
-                                        <h3 className="font-bold text-sm uppercase tracking-wider text-primary">Charity Outreach & Contributions Configuration</h3>
+                                        <Heart className="w-5 h-5 text-[#b8240d] fill-[#b8240d]" />
+                                        <h3 className="font-bold text-xs uppercase tracking-wider text-foreground">
+                                            Outreach Goal & Contributions Setup
+                                        </h3>
                                     </div>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <Label htmlFor="target_amount" className="font-semibold text-slate-700">Target Fundraising Goal (KES)</Label>
+                                            <Label htmlFor="target_amount" className="font-semibold text-xs">Target Fundraising Goal (KES)</Label>
                                             <Input id="target_amount" name="target_amount" type="number" step="1" placeholder="e.g. 50000" />
-                                            <p className="text-[11px] text-muted-foreground">Target financial or resources budget for this outreach mission</p>
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label htmlFor="organizer_contact" className="font-semibold text-slate-700">Organizer Support Contact</Label>
-                                            <Input id="organizer_contact" name="organizer_contact" placeholder="+254 798 182 108 / +254 798 332 690" />
-                                            <p className="text-[11px] text-muted-foreground">Nairobi HQ and field team helpline for donors and attendees</p>
+                                            <Label htmlFor="organizer_contact" className="font-semibold text-xs">Organizer Support Contact</Label>
+                                            <Input id="organizer_contact" name="organizer_contact" placeholder="+254 798 182 108 / +254 798 332 690" defaultValue="+254 798 182 108 / +254 798 332 690" />
                                         </div>
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="youtube_video_url" className="font-semibold text-slate-700">Outreach / Documentary YouTube Video URL</Label>
-                                        <Input id="youtube_video_url" name="youtube_video_url" placeholder="https://www.youtube.com/watch?v=..." />
-                                        <p className="text-[11px] text-muted-foreground">Embeds an inspirational mission documentary or charity video on the event detail page</p>
+                                        <Label htmlFor="youtube_video_url" className="font-semibold text-xs">Outreach Documentary YouTube URL (Optional)</Label>
+                                        <Input id="youtube_video_url" name="youtube_video_url" placeholder="https://www.youtube.com/embed/..." />
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label className="font-semibold text-slate-700">Accepted In-Kind & Financial Contribution Options</Label>
-                                        <p className="text-[11px] text-muted-foreground mb-2">Check the contributions welcome for this visit/outreach:</p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white p-3 rounded-lg border">
+                                        <Label className="font-semibold text-xs">Accepted In-Kind & Financial Contributions</Label>
+                                        <div className="grid grid-cols-1 gap-2 bg-card p-3 rounded-lg border border-border">
                                             {ALL_CONTRIBUTION_OPTIONS.map((item) => (
-                                                <label key={item} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:text-primary">
+                                                <label key={item} className="flex items-center gap-2 text-xs text-foreground cursor-pointer hover:text-primary">
                                                     <input
                                                         type="checkbox"
                                                         checked={acceptedContributions.includes(item)}
                                                         onChange={() => toggleContribution(item)}
-                                                        className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                                                        className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                                                     />
                                                     <span>{item}</span>
                                                 </label>
@@ -2037,16 +1603,15 @@ export default function AdminDashboard() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label className="font-semibold text-slate-700">Event-Day Volunteer Activities Offered</Label>
-                                        <p className="text-[11px] text-muted-foreground mb-2">Activities available for attending volunteers:</p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white p-3 rounded-lg border">
+                                        <Label className="font-semibold text-xs">Event-Day Volunteer Activities Offered</Label>
+                                        <div className="grid grid-cols-1 gap-2 bg-card p-3 rounded-lg border border-border">
                                             {ALL_VOLUNTEER_ROLES.map((role) => (
-                                                <label key={role} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:text-primary">
+                                                <label key={role} className="flex items-center gap-2 text-xs text-foreground cursor-pointer hover:text-primary">
                                                     <input
                                                         type="checkbox"
                                                         checked={volunteerRoles.includes(role)}
                                                         onChange={() => toggleVolunteerRole(role)}
-                                                        className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                                                        className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                                                     />
                                                     <span>{role}</span>
                                                 </label>
@@ -2055,21 +1620,34 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
 
-                                {/* Rich Sections */}
-                                <div className="space-y-4 border-t pt-4">
-                                    <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Itinerary (Multi-day)</h3>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setActivities([...activities, { day: activities.length + 1, date: "", items: [] }])}>
-                                        Add Day
-                                    </Button>
+                                {/* Key Highlights */}
+                                <div className="space-y-2 border-t border-border pt-4">
+                                    <Label className="font-semibold">Key Outreach Highlights (one per line)</Label>
+                                    <Textarea
+                                        placeholder={"Cooking & Sharing Hot Lunch\nMentorship & Life Skills Circle\nDistribution of Books & Shoes"}
+                                        className="min-h-[100px] bg-background"
+                                        value={features.join('\n')}
+                                        onChange={e => setFeatures(e.target.value.split('\n'))}
+                                    />
+                                </div>
+
+                                {/* Schedule / Itinerary */}
+                                <div className="space-y-4 border-t border-border pt-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Outreach Schedule / Itinerary</h3>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setActivities([...activities, { day: activities.length + 1, date: "", items: [] }])}>
+                                            + Add Schedule Block
+                                        </Button>
+                                    </div>
                                     {activities.map((day, dIdx) => (
-                                        <Card key={dIdx} className="p-4 space-y-3 bg-muted/30 border-primary/20">
-                                            <div className="flex justify-between items-center bg-primary/5 p-2 rounded-t-md -mx-4 -mt-4 mb-2">
-                                                <Label className="text-primary font-bold">Day {day.day}</Label>
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => setActivities(activities.filter((_, i) => i !== dIdx))} className="text-destructive hover:bg-destructive/10">
+                                        <Card key={dIdx} className="p-4 space-y-3 bg-muted/20 border-border">
+                                            <div className="flex justify-between items-center">
+                                                <Label className="text-primary font-bold">Schedule Block {day.day}</Label>
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => setActivities(activities.filter((_, i) => i !== dIdx))} className="text-destructive">
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
-                                            <Input placeholder="Date (e.g. April 2)" value={day.date} className="bg-background" onChange={e => {
+                                            <Input placeholder="Session / Time (e.g. Morning Arrival & Kitchen Prep)" value={day.date} className="bg-background" onChange={e => {
                                                 const newA = [...activities];
                                                 newA[dIdx].date = e.target.value;
                                                 setActivities(newA);
@@ -2078,16 +1656,16 @@ export default function AdminDashboard() {
                                                 const newA = [...activities];
                                                 newA[dIdx].items.push({ title: "", description: "" });
                                                 setActivities(newA);
-                                            }}>+ Add Activity</Button>
+                                            }}>+ Add Activity Item</Button>
                                             <div className="space-y-3">
                                                 {day.items.map((item: any, iIdx: number) => (
-                                                    <div key={iIdx} className="pl-4 border-l-2 border-primary/30 space-y-2 mt-2 py-1">
+                                                    <div key={iIdx} className="pl-3 border-l-2 border-primary/30 space-y-2 mt-2 py-1">
                                                         <Input placeholder="Activity Title" value={item.title} className="bg-background" onChange={e => {
                                                             const newA = [...activities];
                                                             newA[dIdx].items[iIdx].title = e.target.value;
                                                             setActivities(newA);
                                                         }} />
-                                                        <Textarea placeholder="Description" className="min-h-[80px] bg-background" value={item.description} onChange={e => {
+                                                        <Textarea placeholder="Description" className="min-h-[60px] bg-background" value={item.description} onChange={e => {
                                                             const newA = [...activities];
                                                             newA[dIdx].items[iIdx].description = e.target.value;
                                                             setActivities(newA);
@@ -2099,18 +1677,23 @@ export default function AdminDashboard() {
                                     ))}
                                 </div>
 
-                                <div className="space-y-4 border-t pt-4">
-                                    <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Speakers</h3>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setSpeakers([...speakers, { name: "", role: "", bio: "", imageUrl: "", imageFile: null }])}>
-                                        Add Speaker
-                                    </Button>
+                                {/* Mentors / Coordinators */}
+                                <div className="space-y-4 border-t border-border pt-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Outreach Leaders & Mentors</h3>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setSpeakers([...speakers, { name: "", role: "", bio: "", imageUrl: "", imageFile: null }])}>
+                                            + Add Leader/Mentor
+                                        </Button>
+                                    </div>
                                     {speakers.map((s, idx) => (
-                                        <Card key={idx} className="p-4 space-y-3 bg-muted/20 border-primary/10">
+                                        <Card key={idx} className="p-4 space-y-3 bg-muted/20 border-border">
                                             <div className="flex justify-between items-center">
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="relative h-12 w-12 ring-2 ring-primary/20 rounded-full">
+                                                <div className="flex items-center space-x-3 flex-1">
+                                                    <div className="relative h-12 w-12 ring-2 ring-primary/20 rounded-full shrink-0">
                                                         {s.imageFile ? (
                                                             <img src={URL.createObjectURL(s.imageFile)} className="h-full w-full object-cover rounded-full" />
+                                                        ) : s.imageUrl ? (
+                                                            <img src={s.imageUrl} className="h-full w-full object-cover rounded-full" />
                                                         ) : (
                                                             <div className="h-full w-full bg-primary/5 rounded-full flex items-center justify-center">
                                                                 <User2 className="h-6 w-6 text-primary/40" />
@@ -2129,26 +1712,26 @@ export default function AdminDashboard() {
                                                                 }
                                                             }}
                                                         />
-                                                        <label htmlFor={`speaker-img-${idx}`} className="absolute -bottom-1 -right-1 bg-primary text-white p-1 rounded-full cursor-pointer shadow-sm hover:bg-primary/90 transition-colors">
+                                                        <label htmlFor={`speaker-img-${idx}`} className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground p-1 rounded-full cursor-pointer shadow-sm">
                                                             <Plus className="h-3 w-3" />
                                                         </label>
                                                     </div>
-                                                    <Input placeholder="Speaker Name" value={s.name} className="flex-1 bg-background" onChange={e => {
+                                                    <Input placeholder="Leader Name" value={s.name} className="flex-1 bg-background" onChange={e => {
                                                         const newS = [...speakers];
                                                         newS[idx].name = e.target.value;
                                                         setSpeakers(newS);
                                                     }} />
                                                 </div>
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => setSpeakers(speakers.filter((_, i) => i !== idx))} className="text-destructive hover:bg-destructive/10">
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => setSpeakers(speakers.filter((_, i) => i !== idx))} className="text-destructive">
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
-                                            <Input placeholder="Professional Role" value={s.role} className="bg-background" onChange={e => {
+                                            <Input placeholder="Role (e.g. Outreach Coordinator / Counselor)" value={s.role} className="bg-background" onChange={e => {
                                                 const newS = [...speakers];
                                                 newS[idx].role = e.target.value;
                                                 setSpeakers(newS);
                                             }} />
-                                            <Textarea placeholder="Short Bio" className="min-h-[80px] bg-background" value={s.bio} onChange={e => {
+                                            <Textarea placeholder="Short Bio" className="min-h-[60px] bg-background" value={s.bio} onChange={e => {
                                                 const newS = [...speakers];
                                                 newS[idx].bio = e.target.value;
                                                 setSpeakers(newS);
@@ -2157,22 +1740,27 @@ export default function AdminDashboard() {
                                     ))}
                                 </div>
 
-                                <div className="space-y-4 border-t pt-4">
-                                    <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">FAQs</h3>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setFaqs([...faqs, { question: "", answer: "" }])}>
-                                        Add FAQ
-                                    </Button>
+                                {/* FAQs */}
+                                <div className="space-y-4 border-t border-border pt-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">FAQs</h3>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setFaqs([...faqs, { question: "", answer: "" }])}>
+                                            + Add FAQ
+                                        </Button>
+                                    </div>
                                     {faqs.map((f, idx) => (
-                                        <Card key={idx} className="p-4 space-y-3 bg-muted/20 border-primary/10">
+                                        <Card key={idx} className="p-4 space-y-3 bg-muted/20 border-border">
                                             <div className="flex justify-between items-start gap-2">
                                                 <Input placeholder="Question" className="bg-background flex-1" value={f.question} onChange={e => {
                                                     const newF = [...faqs];
                                                     newF[idx].question = e.target.value;
                                                     setFaqs(newF);
                                                 }} />
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => setFaqs(faqs.filter((_, i) => i !== idx))} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => setFaqs(faqs.filter((_, i) => i !== idx))} className="text-destructive">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                            <Textarea placeholder="Detailed Answer" className="min-h-[80px] bg-background" value={f.answer} onChange={e => {
+                                            <Textarea placeholder="Detailed Answer" className="min-h-[60px] bg-background" value={f.answer} onChange={e => {
                                                 const newF = [...faqs];
                                                 newF[idx].answer = e.target.value;
                                                 setFaqs(newF);
@@ -2180,56 +1768,36 @@ export default function AdminDashboard() {
                                         </Card>
                                     ))}
                                 </div>
-                                <div className="space-y-4 border-t pt-4">
-                                    <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Alignment & Goals</h3>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-primary font-semibold">Affiliation/Vision Title</Label>
-                                            <Input placeholder="Aligned with Europe’s Youth Vision" value={alignment.title} className="bg-background" onChange={e => setAlignment({ ...alignment, title: e.target.value })} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-primary font-semibold">Affiliation Description</Label>
-                                            <Textarea placeholder="Explain how the event aligns with the vision..." className="bg-background min-h-[100px]" value={alignment.description} onChange={e => setAlignment({ ...alignment, description: e.target.value })} />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2 pt-2">
-                                        <Label className="text-primary font-semibold">Key Features/Goals (one per line)</Label>
-                                        <Textarea
-                                            placeholder="High-Impact Keynotes&#10;Interactive Workshops"
-                                            className="min-h-[120px] bg-background"
-                                            value={features.join('\n')}
-                                            onChange={e => setFeatures(e.target.value.split('\n'))}
-                                        />
-                                    </div>
-                                </div>
 
-                                <div className="space-y-4 border-t pt-4">
-                                    <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">User Journey</h3>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-primary font-semibold">Arrival & Location Guide</Label>
-                                            <Textarea placeholder="How to arrive, shuttle services..." className="bg-background min-h-[100px]" value={journey.arrival} onChange={e => setJourney({ ...journey, arrival: e.target.value })} />
+                                {/* Volunteer Preparation Guide */}
+                                <div className="space-y-4 border-t border-border pt-4">
+                                    <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Volunteer Arrival & Preparation Guide</h3>
+                                    <div className="space-y-3">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">Meeting Point & Arrival Logistics</Label>
+                                            <Textarea placeholder="Where volunteers meet, transport coordination, drop-off instructions..." className="bg-background min-h-[80px]" value={journey.arrival} onChange={e => setJourney({ ...journey, arrival: e.target.value })} />
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-primary font-semibold">What to Expect</Label>
-                                            <Textarea placeholder="Event guides, schedules..." className="bg-background min-h-[100px]" value={journey.expectations} onChange={e => setJourney({ ...journey, expectations: e.target.value })} />
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">What to Bring / Expect</Label>
+                                            <Textarea placeholder="Comfortable attire for cooking and games, schedule overview..." className="bg-background min-h-[80px]" value={journey.expectations} onChange={e => setJourney({ ...journey, expectations: e.target.value })} />
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 border-t pt-4">
-                                    <Label className="text-primary font-semibold">Hero Image (Required)</Label>
+                                {/* Hero Image */}
+                                <div className="space-y-2 border-t border-border pt-4">
+                                    <Label className="font-semibold">Hero Banner Image (Required)</Label>
                                     <div className="flex flex-col space-y-2">
                                         {heroImagePreview ? (
                                             <div className="relative group w-full max-w-sm aspect-video">
-                                                <img src={heroImagePreview} className="w-full h-full object-cover rounded-md border" />
+                                                <img src={heroImagePreview} className="w-full h-full object-cover rounded-xl border border-border" />
                                                 <button
                                                     type="button"
                                                     onClick={() => {
                                                         setHeroImagePreview(null);
                                                         setHeroImageFile(null);
                                                     }}
-                                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600"
+                                                    className="absolute top-2 right-2 bg-destructive text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
@@ -2251,7 +1819,7 @@ export default function AdminDashboard() {
                                                 />
                                                 <Label
                                                     htmlFor="hero-image-upload"
-                                                    className="flex items-center justify-center w-full max-w-sm aspect-video border-2 border-dashed border-primary/50 rounded-lg cursor-pointer hover:bg-primary/5 transition-colors"
+                                                    className="flex items-center justify-center w-full max-w-sm aspect-video border-2 border-dashed border-primary/50 rounded-xl cursor-pointer hover:bg-primary/5 transition-colors"
                                                 >
                                                     <div className="flex flex-col items-center">
                                                         <Upload className="h-8 w-8 text-primary mb-2" />
@@ -2264,8 +1832,9 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 border-t pt-4">
-                                    <Label>Event Media (Gallery)</Label>
+                                {/* Gallery Images */}
+                                <div className="space-y-2 border-t border-border pt-4">
+                                    <Label>Outreach Media Gallery</Label>
                                     <div className="flex items-center space-x-2">
                                         <Input
                                             type="file"
@@ -2277,22 +1846,22 @@ export default function AdminDashboard() {
                                         />
                                         <Label
                                             htmlFor="image-upload"
-                                            className="flex items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                                            className="flex items-center justify-center w-full h-24 border-2 border-dashed border-border rounded-xl cursor-pointer hover:bg-muted/40 transition-colors"
                                         >
                                             <div className="flex flex-col items-center">
-                                                <Upload className="h-6 w-6 text-gray-400" />
-                                                <span className="text-sm text-gray-500">Click to upload images</span>
+                                                <Upload className="h-6 w-6 text-muted-foreground" />
+                                                <span className="text-sm text-muted-foreground">Click to upload gallery photos</span>
                                             </div>
                                         </Label>
                                     </div>
                                     <div className="grid grid-cols-3 gap-2 mt-2">
                                         {imagePreviews.map((src, i) => (
                                             <div key={i} className="relative group aspect-square">
-                                                <img src={src} className="w-full h-full object-cover rounded-md" />
+                                                <img src={src} className="w-full h-full object-cover rounded-lg" />
                                                 <button
                                                     type="button"
                                                     onClick={() => removeImage(i)}
-                                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    className="absolute top-1 right-1 bg-destructive text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                                 >
                                                     <Trash2 className="h-3 w-3" />
                                                 </button>
@@ -2300,10 +1869,11 @@ export default function AdminDashboard() {
                                         ))}
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button type="submit" className="flex-1" disabled={isSubmitting || uploading}>
+
+                                <div className="flex gap-2 pt-2">
+                                    <Button type="submit" className="flex-1 font-bold" disabled={isSubmitting || uploading}>
                                         {(isSubmitting || uploading) ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                                        {editingEvent ? "Update Event" : "Create Event"}
+                                        {editingEvent ? "Update Outreach Event" : "Publish Outreach Event"}
                                     </Button>
                                     {editingEvent && (
                                         <Button type="button" variant="outline" onClick={cancelEdit}>
@@ -2315,42 +1885,42 @@ export default function AdminDashboard() {
                         </CardContent>
                     </Card>
 
-                    {/* Events List */}
+                    {/* Existing Outreach Events List */}
                     <div className="lg:col-span-2 space-y-4">
-                        <h2 className="text-xl font-bold text-primary mb-4">Existing Events</h2>
+                        <h2 className="text-xl font-bold text-foreground mb-4">Scheduled & Past Outreach Events</h2>
                         {events.length === 0 ? (
-                            <p className="text-gray-500 italic">No events found.</p>
+                            <p className="text-muted-foreground italic">No events found.</p>
                         ) : (
                             events.map(event => (
-                                <Card key={event.id}>
+                                <Card key={event.id} className="border-border bg-card">
                                     <CardContent className="p-4 flex items-start space-x-4">
                                         {event.heroImageUrl || event.imageUrls?.[0] ? (
-                                            <img src={event.heroImageUrl || event.imageUrls?.[0]} className="w-24 h-24 object-cover rounded-md flex-shrink-0" />
+                                            <img src={event.heroImageUrl || event.imageUrls?.[0]} className="w-24 h-24 object-cover rounded-xl flex-shrink-0 border border-border" />
                                         ) : (
-                                            <div className="w-24 h-24 bg-slate-100 flex items-center justify-center rounded-md flex-shrink-0">
-                                                <ImageIcon className="h-8 w-8 text-gray-300" />
+                                            <div className="w-24 h-24 bg-muted flex items-center justify-center rounded-xl flex-shrink-0">
+                                                <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                             </div>
                                         )}
                                         <div className="flex-1">
-                                            <h3 className="font-bold text-lg">{event.title}</h3>
-                                            <p className="text-sm text-gray-500 mb-1">
-                                                {format(new Date(event.date), 'PPP p')} • {event.location} • {Number(event.price) > 0 ? `KES ${event.price}` : 'Free / Voluntary'}
+                                            <h3 className="font-bold text-lg text-foreground">{event.title}</h3>
+                                            <p className="text-sm text-muted-foreground mb-1">
+                                                {format(new Date(event.date), 'PPP')} • {event.location} • {Number(event.price) > 0 ? `Suggested KES ${Number(event.price).toLocaleString()}` : 'Open Voluntary Giving'}
                                             </p>
-                                            {event.target_amount ? (
-                                                <p className="text-xs font-semibold text-emerald-700 mb-1">
-                                                    Target Goal: KES {event.target_amount.toLocaleString()} • Contact: {event.organizer_contact || "+254 798 182 108 / +254 798 332 690"}
+                                            {Number(event.target_amount) > 0 && (
+                                                <p className="text-xs font-bold text-primary mb-1">
+                                                    Target Goal: KES {Number(event.target_amount).toLocaleString()} • Contact: {event.organizer_contact || "+254 798 182 108 / +254 798 332 690"}
                                                 </p>
-                                            ) : null}
-                                            <p className="text-gray-600 line-clamp-2 text-sm">{event.description}</p>
+                                            )}
+                                            <p className="text-muted-foreground line-clamp-2 text-sm">{event.description}</p>
                                             {event.accepted_contributions && event.accepted_contributions.length > 0 && (
                                                 <div className="flex flex-wrap gap-1 mt-2">
                                                     {event.accepted_contributions.slice(0, 4).map((c: string, idx: number) => (
-                                                        <span key={idx} className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                                                        <span key={idx} className="text-[10px] bg-muted px-2 py-0.5 rounded-md text-muted-foreground font-medium">
                                                             {c}
                                                         </span>
                                                     ))}
                                                     {event.accepted_contributions.length > 4 && (
-                                                        <span className="text-[10px] text-slate-400">+{event.accepted_contributions.length - 4} more</span>
+                                                        <span className="text-[10px] text-muted-foreground">+{event.accepted_contributions.length - 4} more</span>
                                                     )}
                                                 </div>
                                             )}
@@ -2358,13 +1928,15 @@ export default function AdminDashboard() {
                                         <div className="flex flex-col gap-2">
                                             <button
                                                 onClick={() => handleEditClick(event)}
-                                                className="text-primary hover:text-primary/70 p-2"
+                                                className="text-primary hover:bg-primary/10 rounded-lg p-2 transition-colors"
+                                                title="Edit Outreach Event"
                                             >
                                                 <Edit2 className="h-5 w-5" />
                                             </button>
                                             <button
                                                 onClick={() => deleteEvent(event.id)}
-                                                className="text-red-500 hover:text-red-700 p-2"
+                                                className="text-destructive hover:bg-destructive/10 rounded-lg p-2 transition-colors"
+                                                title="Delete Outreach Event"
                                             >
                                                 <Trash2 className="h-5 w-5" />
                                             </button>
@@ -2382,13 +1954,6 @@ export default function AdminDashboard() {
                     <BlogManager />
                 </div>
             )}
-
-            {activeTab === 'visa' && (
-                <div className="max-w-5xl mx-auto">
-                    <VisaInvitationManager />
-                </div>
-            )}
         </div>
     );
 }
-

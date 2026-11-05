@@ -21,7 +21,6 @@ export default function UniversalPaymentModal() {
     const [stkMessage, setStkMessage] = useState<string>("");
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Clean up timer on unmount / close
     useEffect(() => {
         return () => {
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
@@ -53,7 +52,7 @@ export default function UniversalPaymentModal() {
                     phoneNumber,
                     amount: paymentData.amount,
                     bookingId: paymentData.bookingId,
-                    userId: user?.id,
+                    userId: user?.id || null,
                     description: paymentData.title || 'Charity Donation'
                 })
             });
@@ -67,7 +66,6 @@ export default function UniversalPaymentModal() {
             setStkStatus('polling');
             setStkMessage(result.customerMessage || "PIN prompt sent to your phone! Please enter your M-Pesa PIN to complete payment.");
 
-            // Start Polling every 2.5s for 60 seconds
             let attempts = 0;
             const maxAttempts = 24;
 
@@ -93,7 +91,7 @@ export default function UniversalPaymentModal() {
                         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
                         setStkStatus('idle');
                         setIsProcessing(false);
-                        setStkMessage("Polling timed out. If you received a confirmation SMS, your receipt will synchronize in My Requests shortly.");
+                        setStkMessage("Polling timed out. If you received a confirmation SMS, your receipt will synchronize in My Bookings & Pledges shortly.");
                     }
                 } catch (pollErr) {
                     console.log('STK Poll check error:', pollErr);
@@ -122,7 +120,7 @@ export default function UniversalPaymentModal() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     bookingId: paymentData.bookingId,
-                    userId: user?.id,
+                    userId: user?.id || null,
                     amount: paymentData.amount
                 })
             });
@@ -156,9 +154,11 @@ export default function UniversalPaymentModal() {
                     category: paymentData.category || 'ATTENDEE_CONTRIBUTOR',
                     amount: paymentData.amount,
                     currency: paymentData.currency || 'kes',
-                    userId: user?.id,
+                    userId: user?.id || null,
+                    email: user?.email || paymentData.guestEmail || undefined,
                     bookingId: paymentData.bookingId,
                     type: paymentData.type,
+                    isInstallment: paymentData.isInstallment || false,
                     returnUrl: paymentData.returnUrl || currentPath
                 }),
             });
@@ -189,39 +189,30 @@ export default function UniversalPaymentModal() {
     ) => {
         setIsProcessing(true);
         try {
-            if (type === 'event') {
-                const { data: booking } = await supabase
-                    .from('Booking')
-                    .select('*, Event(*)')
-                    .eq('id', bookingId)
-                    .maybeSingle();
+            const { data: booking } = await supabase
+                .from('Booking')
+                .select('*, Event(*)')
+                .eq('id', bookingId)
+                .maybeSingle();
 
-                if (booking) {
-                    generateTicketPDF({
-                        eventTitle: booking.Event?.title || "Charity Outreach Event",
-                        eventDate: booking.Event?.date ? format(new Date(booking.Event.date), 'PPPP') : "TBA",
-                        eventLocation: booking.Event?.location || "Nairobi, Kenya",
-                        userName: profile?.name || user?.email?.split('@')[0] || "Contributor",
-                        userEmail: user?.email || "",
-                        category: booking.category || "Attendee Contributor",
-                        amountPaid: Number(booking.amountPaid || paymentData.amount),
-                        bookingId: booking.id
-                    });
-                }
+            generateTicketPDF({
+                eventTitle: booking?.Event?.title || paymentData.title || "The Voice of Hope Charity Outreach",
+                eventDate: booking?.Event?.date ? format(new Date(booking.Event.date), 'PPPP') : format(new Date(), 'PPPP'),
+                eventLocation: booking?.Event?.location || "Nairobi, Kenya",
+                userName: profile?.name || paymentData.guestName || booking?.guest_name || user?.email?.split('@')[0] || "Valued Supporter",
+                userEmail: user?.email || paymentData.guestEmail || booking?.guest_email || "",
+                category: booking?.category || (paymentData.isInstallment ? "Pledge Installment Bit" : "Supporter Contribution"),
+                amountPaid: Number(booking?.amountPaid || paymentData.amount),
+                bookingId: booking?.id || bookingId
+            });
 
-                toast({
-                    title: method === 'CASH_EVENT_DAY' ? "Pledge Confirmed! 🤝" : "Contribution Confirmed! ❤️",
-                    description:
-                        method === 'CASH_EVENT_DAY'
-                            ? "Your event pass has been generated. You may bring your cash donation on event day."
-                            : `Your payment was verified${receiptNumber ? ` (Ref: ${receiptNumber})` : ''}. Your event pass has been downloaded!`
-                });
-            } else {
-                toast({
-                    title: "Transaction Confirmed",
-                    description: "Thank you for supporting our community programs."
-                });
-            }
+            toast({
+                title: method === 'CASH_EVENT_DAY' ? "Pledge Confirmed! 🤝" : "Contribution Confirmed! ❤️",
+                description:
+                    method === 'CASH_EVENT_DAY'
+                        ? "Your outreach pass has been generated. You may bring your cash donation on outreach day."
+                        : `Your payment was verified${receiptNumber ? ` (Ref: ${receiptNumber})` : ''}. Your official receipt & pass has been downloaded!`
+            });
 
             queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['upcoming-events'] });
@@ -235,7 +226,6 @@ export default function UniversalPaymentModal() {
     };
 
     const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || "test";
-    // Approximate USD amount for PayPal if paymentData is in KES
     const usdAmountForPaypal = Math.max(1, Math.round(paymentData.amount / 130)).toString();
 
     return (
@@ -246,7 +236,9 @@ export default function UniversalPaymentModal() {
                         {paymentData.title || "Confirm Your Contribution"}
                     </DialogTitle>
                     <DialogDescription className="text-xs sm:text-sm text-muted-foreground pt-1">
-                        {paymentData.description || "Choose your preferred payment method to complete your donation or attendance."}
+                        {paymentData.isInstallment
+                            ? `Paying an installment bit of KES ${Number(paymentData.amount).toLocaleString()} toward your pledge.`
+                            : (paymentData.description || "Choose your preferred payment method to complete your donation or outreach booking.")}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -254,7 +246,7 @@ export default function UniversalPaymentModal() {
                     <PaymentSelection
                         amount={paymentData.amount}
                         currency={paymentData.currency || "KES"}
-                        defaultPhone={profile?.phone || ""}
+                        defaultPhone={profile?.phone || paymentData.guestPhone || ""}
                         isProcessing={isProcessing}
                         stkStatus={stkStatus}
                         stkMessage={stkMessage}
@@ -289,7 +281,7 @@ export default function UniversalPaymentModal() {
                             <PayPalButtons
                                 style={{ layout: 'vertical', shape: 'pill', label: 'pay' }}
                                 disabled={isProcessing}
-                                createOrder={(data, actions) => {
+                                createOrder={(_data, actions) => {
                                     return actions.order.create({
                                         intent: 'CAPTURE',
                                         purchase_units: [{
@@ -313,7 +305,8 @@ export default function UniversalPaymentModal() {
                                                     orderId: data.orderID,
                                                     bookingId: paymentData.bookingId,
                                                     type: paymentData.type,
-                                                    userId: user?.id
+                                                    amount: paymentData.amount,
+                                                    userId: user?.id || null
                                                 })
                                             });
                                         } catch (verifyErr) {

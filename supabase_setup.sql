@@ -1,16 +1,17 @@
--- Youth Empowerment Platform - Consolidated Database Schema & Migration
--- optimized for RLS --
+-- ==============================================================================
+-- THE VOICE OF HOPE KENYA - CONSOLIDATED PRODUCTION DATABASE SCHEMA & MIGRATION
+-- Optimized for Charity Outreach, Guest & Member Donations, Installment Pledges,
+-- M-Pesa Daraja STK Push, Stripe, PayPal, and Row Level Security (RLS).
+-- ==============================================================================
 
 -- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. STORAGE BUCKETS
--- Ensure buckets exist and are correctly configured as public/private
 INSERT INTO storage.buckets (id, name, public) VALUES 
   ('event-media', 'event-media', true),
   ('user-documents', 'user-documents', false),
-  ('documents', 'documents', true), -- Changed to public for proposal/application documents
-  ('visa-documents', 'visa-documents', true)
+  ('documents', 'documents', true)
 ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public;
 
 -- 3. ENUMS
@@ -20,7 +21,12 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- 4. TABLES
+-- 4. DROP LEGACY UNUSED TABLES & COLUMNS (Safe Cleanup)
+DROP TABLE IF EXISTS "VisaInvitation" CASCADE;
+DROP TABLE IF EXISTS "Proposals" CASCADE;
+DROP TABLE IF EXISTS "Applications" CASCADE;
+
+-- 5. TABLES
 
 -- Users table
 CREATE TABLE IF NOT EXISTS "User" (
@@ -32,62 +38,137 @@ CREATE TABLE IF NOT EXISTS "User" (
     city TEXT,
     address TEXT,
     role role DEFAULT 'USER',
-    "createdAt" TIMESTAMP DEFAULT NOW(),
-    "updatedAt" TIMESTAMP DEFAULT NOW()
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Events table
+-- Events table (Streamlined for Charity Outreach)
 CREATE TABLE IF NOT EXISTS "Event" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     theme TEXT,
     description TEXT NOT NULL,
-    date TIMESTAMP NOT NULL,
+    date TIMESTAMP WITH TIME ZONE NOT NULL,
     location TEXT NOT NULL,
-    price DECIMAL(10,2) NOT NULL,
+    price DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "target_amount" DECIMAL(12,2) DEFAULT 0,
+    currency TEXT DEFAULT 'KES',
+    "heroImageUrl" TEXT,
     "imageUrls" TEXT[] DEFAULT '{}',
+    "accepted_contributions" JSONB DEFAULT '["Money", "Food", "Clothing", "Finances", "Learning materials", "Electronics", "Laptops", "Phones", "Computers", "Shoes", "Utensils", "Self"]'::JSONB,
+    "volunteer_roles" JSONB DEFAULT '["Work in kitchen", "Play games", "Mingle with kids", "Seek to adopt"]'::JSONB,
+    "organizer_contact" TEXT DEFAULT '+254 798 182 108 / +254 798 332 690',
+    "youtube_video_url" TEXT,
     activities JSONB DEFAULT '[]',
-    alignment JSONB DEFAULT '{}',
     features JSONB DEFAULT '[]',
     speakers JSONB DEFAULT '[]',
     journey JSONB DEFAULT '{}',
     faqs JSONB DEFAULT '[]',
-    self_funded_seats INTEGER DEFAULT 0,
-    partially_funded_seats INTEGER DEFAULT 0,
-    fully_funded_seats INTEGER DEFAULT 0,
-    "createdAt" TIMESTAMP DEFAULT NOW(),
-    "updatedAt" TIMESTAMP DEFAULT NOW()
+    type TEXT DEFAULT 'PHYSICAL',
+    meeting_link TEXT,
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "benefits" JSONB DEFAULT '[]'::JSONB;
-ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "requires_proposal" BOOLEAN DEFAULT FALSE;
-ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT 'PHYSICAL'; -- enum: PHYSICAL, VIRTUAL, BOTH
-ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "meeting_link" TEXT;
+
+-- Ensure columns exist on existing Event table and drop legacy seat/proposal/alignment columns
+ALTER TABLE "Event" DROP COLUMN IF EXISTS "self_funded_seats";
+ALTER TABLE "Event" DROP COLUMN IF EXISTS "partially_funded_seats";
+ALTER TABLE "Event" DROP COLUMN IF EXISTS "fully_funded_seats";
+ALTER TABLE "Event" DROP COLUMN IF EXISTS "requires_proposal";
+ALTER TABLE "Event" DROP COLUMN IF EXISTS "alignment";
+ALTER TABLE "Event" DROP COLUMN IF EXISTS "benefits";
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "target_amount" DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "currency" TEXT DEFAULT 'KES';
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "heroImageUrl" TEXT;
-ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "target_amount" DECIMAL(10,2) DEFAULT 0;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "accepted_contributions" JSONB DEFAULT '["Money", "Food", "Clothing", "Finances", "Learning materials", "Electronics", "Laptops", "Phones", "Computers", "Shoes", "Utensils", "Self"]'::JSONB;
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "volunteer_roles" JSONB DEFAULT '["Work in kitchen", "Play games", "Mingle with kids", "Seek to adopt"]'::JSONB;
-ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "organizer_contact" TEXT DEFAULT '+254798182108 / +254798332690';
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "organizer_contact" TEXT DEFAULT '+254 798 182 108 / +254 798 332 690';
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "youtube_video_url" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT 'PHYSICAL';
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "meeting_link" TEXT;
 
--- Bookings table
+-- Bookings table (Supports Authenticated Members, Account-Free Guests, and Installment Pledges)
 CREATE TABLE IF NOT EXISTS "Booking" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "userId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-    "eventId" UUID NOT NULL REFERENCES "Event"(id) ON DELETE CASCADE,
-    category TEXT NOT NULL DEFAULT 'SELF_FUNDED',
-    "amountPaid" DECIMAL(10,2) NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'PENDING',
-    "createdAt" TIMESTAMP DEFAULT NOW()
+    "userId" UUID REFERENCES "User"(id) ON DELETE SET NULL,
+    "eventId" UUID REFERENCES "Event"(id) ON DELETE CASCADE,
+    category TEXT NOT NULL DEFAULT 'ATTENDEE_CONTRIBUTOR',
+    "amountPaid" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "pledged_amount" DECIMAL(12,2) DEFAULT 0,
+    "is_pledge" BOOLEAN DEFAULT FALSE,
+    "reminder_frequency" TEXT DEFAULT 'NONE', -- 'DAILY', 'EVERY_3_DAYS', 'WEEKLY', 'NONE'
+    "pledge_due_date" TIMESTAMP WITH TIME ZONE,
+    "last_reminder_sent_at" TIMESTAMP WITH TIME ZONE,
+    "installment_history" JSONB DEFAULT '[]'::JSONB,
+    "guest_name" TEXT,
+    "guest_email" TEXT,
+    "guest_phone" TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'CONFIRMED', 'PLEDGED', 'CANCELLED'
+    mode TEXT DEFAULT 'PHYSICAL',
+    attendance_type TEXT DEFAULT 'ATTENDING', -- 'ATTENDING' or 'DONATING_ONLY'
+    delivery_method TEXT DEFAULT 'IN_PERSON_EVENT_DAY', -- 'IN_PERSON_EVENT_DAY' or 'ONLINE_DELIVERY'
+    item_contributions JSONB DEFAULT '[]'::JSONB,
+    volunteer_activities JSONB DEFAULT '[]'::JSONB,
+    mingle_notes TEXT,
+    seek_to_adopt BOOLEAN DEFAULT FALSE,
+    wish_note TEXT,
+    payment_method TEXT DEFAULT 'MPESA', -- 'MPESA', 'CASH_EVENT_DAY', 'STRIPE', 'PAYPAL', 'PLEDGE'
+    payment_status TEXT DEFAULT 'PENDING', -- 'PENDING', 'PAID', 'PARTIAL_PLEDGE', 'PENDING_CASH_ON_ARRIVAL'
+    currency TEXT DEFAULT 'KES',
+    phone_number TEXT,
+    mpesa_receipt TEXT,
+    mpesa_checkout_request_id TEXT,
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-ALTER TABLE "Booking" ALTER COLUMN "userId" SET DEFAULT auth.uid();
-ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "mode" TEXT DEFAULT 'PHYSICAL'; -- enum: PHYSICAL, VIRTUAL
-ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "attendance_type" TEXT DEFAULT 'ATTENDING'; -- ATTENDING, DONATING_ONLY
-ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "delivery_method" TEXT; -- ONLINE_DELIVERY, IN_PERSON_EVENT_DAY
+
+-- Ensure Booking columns & nullable userId for guest donations
+ALTER TABLE "Booking" ALTER COLUMN "userId" DROP NOT NULL;
+ALTER TABLE "Booking" ALTER COLUMN "eventId" DROP NOT NULL;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "pledged_amount" DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "is_pledge" BOOLEAN DEFAULT FALSE;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "reminder_frequency" TEXT DEFAULT 'NONE';
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "pledge_due_date" TIMESTAMP WITH TIME ZONE;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "last_reminder_sent_at" TIMESTAMP WITH TIME ZONE;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "installment_history" JSONB DEFAULT '[]'::JSONB;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "guest_name" TEXT;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "guest_email" TEXT;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "guest_phone" TEXT;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "mode" TEXT DEFAULT 'PHYSICAL';
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "attendance_type" TEXT DEFAULT 'ATTENDING';
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "delivery_method" TEXT DEFAULT 'IN_PERSON_EVENT_DAY';
 ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "item_contributions" JSONB DEFAULT '[]'::JSONB;
 ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "volunteer_activities" JSONB DEFAULT '[]'::JSONB;
 ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "mingle_notes" TEXT;
 ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "seek_to_adopt" BOOLEAN DEFAULT FALSE;
 ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "wish_note" TEXT;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "payment_method" TEXT DEFAULT 'MPESA';
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "payment_status" TEXT DEFAULT 'PENDING';
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "currency" TEXT DEFAULT 'KES';
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "phone_number" TEXT;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "mpesa_receipt" TEXT;
+ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "mpesa_checkout_request_id" TEXT;
+
+-- M-Pesa Transactions Audit Log Table
+CREATE TABLE IF NOT EXISTS "MpesaTransaction" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "bookingId" UUID REFERENCES "Booking"(id) ON DELETE SET NULL,
+    "userId" UUID REFERENCES "User"(id) ON DELETE SET NULL,
+    "merchantRequestId" TEXT,
+    "checkoutRequestId" TEXT UNIQUE,
+    "responseCode" TEXT,
+    "responseDescription" TEXT,
+    "customerMessage" TEXT,
+    "phoneNumber" TEXT,
+    "amount" DECIMAL(12,2),
+    "mpesaReceiptNumber" TEXT,
+    "transactionDate" TEXT,
+    "resultCode" INTEGER,
+    "resultDesc" TEXT,
+    status TEXT DEFAULT 'PENDING', -- 'PENDING', 'COMPLETED', 'FAILED'
+    "rawCallback" JSONB,
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- BlogPosts table
 CREATE TABLE IF NOT EXISTS "BlogPost" (
@@ -96,8 +177,8 @@ CREATE TABLE IF NOT EXISTS "BlogPost" (
     content TEXT NOT NULL,
     "imageUrl" TEXT,
     "authorId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-    "createdAt" TIMESTAMP DEFAULT NOW(),
-    "updatedAt" TIMESTAMP DEFAULT NOW()
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Testimonials table
@@ -105,27 +186,13 @@ CREATE TABLE IF NOT EXISTS "Testimonial" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content TEXT NOT NULL,
     "authorId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-    "createdAt" TIMESTAMP DEFAULT NOW()
+    rating INTEGER DEFAULT 5,
+    status TEXT DEFAULT 'APPROVED',
+    "authorName" TEXT,
+    "authorRole" TEXT DEFAULT 'Supporter',
+    "authorAvatar" TEXT,
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-ALTER TABLE "Testimonial" ADD COLUMN IF NOT EXISTS "rating" INTEGER DEFAULT 5;
-ALTER TABLE "Testimonial" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'APPROVED';
-ALTER TABLE "Testimonial" ADD COLUMN IF NOT EXISTS "authorName" TEXT;
-ALTER TABLE "Testimonial" ADD COLUMN IF NOT EXISTS "authorRole" TEXT DEFAULT 'Supporter';
-ALTER TABLE "Testimonial" ADD COLUMN IF NOT EXISTS "authorAvatar" TEXT;
-
--- VisaInvitations table
-CREATE TABLE IF NOT EXISTS "VisaInvitation" (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "userId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-    "eventId" UUID NOT NULL REFERENCES "Event"(id) ON DELETE CASCADE,
-    status TEXT NOT NULL DEFAULT 'PENDING',
-    "amountPaid" DECIMAL(10,2) NOT NULL DEFAULT 0,
-    "paymentStatus" TEXT NOT NULL DEFAULT 'PENDING',
-    "createdAt" TIMESTAMP DEFAULT NOW(),
-    "updatedAt" TIMESTAMP DEFAULT NOW()
-);
-ALTER TABLE "VisaInvitation" ADD COLUMN IF NOT EXISTS "letterUrl" TEXT;
-ALTER TABLE "VisaInvitation" ALTER COLUMN "userId" SET DEFAULT auth.uid();
 
 -- Notifications table
 CREATE TABLE IF NOT EXISTS "Notification" (
@@ -135,7 +202,7 @@ CREATE TABLE IF NOT EXISTS "Notification" (
     message TEXT NOT NULL,
     type TEXT DEFAULT 'INFO',
     "isRead" BOOLEAN DEFAULT FALSE,
-    "createdAt" TIMESTAMP DEFAULT NOW()
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Wallets table
@@ -143,8 +210,8 @@ CREATE TABLE IF NOT EXISTS "Wallet" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "userId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
     balance DECIMAL(12,2) DEFAULT 0,
-    currency TEXT DEFAULT 'USD',
-    "updatedAt" TIMESTAMP DEFAULT NOW()
+    currency TEXT DEFAULT 'KES',
+    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Stats table
@@ -154,7 +221,7 @@ CREATE TABLE IF NOT EXISTS "Stats" (
     "eventsAttended" INTEGER DEFAULT 0,
     "blogPostsCount" INTEGER DEFAULT 0,
     "points" INTEGER DEFAULT 0,
-    "updatedAt" TIMESTAMP DEFAULT NOW()
+    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- IdentityVerification table
@@ -164,38 +231,9 @@ CREATE TABLE IF NOT EXISTS "IdentityVerification" (
     status TEXT NOT NULL DEFAULT 'PENDING',
     "documentUrls" TEXT[] DEFAULT '{}',
     "adminNotes" TEXT,
-    "createdAt" TIMESTAMP DEFAULT NOW(),
-    "updatedAt" TIMESTAMP DEFAULT NOW()
-);
-
--- Proposals table
-CREATE TABLE IF NOT EXISTS "Proposals" (
-    "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "userId" UUID REFERENCES "User"("id") ON DELETE CASCADE,
-    "eventId" UUID REFERENCES "Event"("id") ON DELETE CASCADE,
-    "description" TEXT NOT NULL,
-    "documentUrl" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'PENDING' CHECK ("status" IN ('PENDING', 'APPROVED', 'REJECTED')),
-    "autoApproveAt" TIMESTAMP WITH TIME ZONE,
     "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-ALTER TABLE "Proposals" ALTER COLUMN "userId" SET DEFAULT auth.uid();
-
--- Applications table (Sponsors, NextGen, etc.)
-CREATE TABLE IF NOT EXISTS "Applications" (
-    "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "userId" UUID REFERENCES "User"("id") ON DELETE CASCADE,
-    "type" TEXT NOT NULL CHECK ("type" IN ('SPEAKER', 'SPONSOR', 'NEXTGEN', 'GLOBAL_FORUM')),
-    "status" TEXT NOT NULL DEFAULT 'PENDING' CHECK ("status" IN ('PENDING', 'APPROVED', 'REJECTED')),
-    "description" TEXT NOT NULL,
-    "documentUrl" TEXT,
-    "donationAmount" DECIMAL(10, 2) DEFAULT 0,
-    "paymentStatus" TEXT DEFAULT 'PENDING' CHECK ("paymentStatus" IN ('PENDING', 'PAID')),
-    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-ALTER TABLE "Applications" ALTER COLUMN "userId" SET DEFAULT auth.uid();
 
 -- SupportConversations table
 CREATE TABLE IF NOT EXISTS "SupportConversation" (
@@ -224,12 +262,13 @@ CREATE TABLE IF NOT EXISTS "SupportMessage" (
     "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-
--- 5. INDEXES
+-- 6. INDEXES
 CREATE INDEX IF NOT EXISTS idx_user_email ON "User"(email);
 CREATE INDEX IF NOT EXISTS idx_event_date ON "Event"(date);
 CREATE INDEX IF NOT EXISTS idx_booking_user_id ON "Booking"("userId");
 CREATE INDEX IF NOT EXISTS idx_booking_event_id ON "Booking"("eventId");
+CREATE INDEX IF NOT EXISTS idx_booking_guest_phone ON "Booking"("guest_phone");
+CREATE INDEX IF NOT EXISTS idx_booking_is_pledge ON "Booking"("is_pledge");
 CREATE INDEX IF NOT EXISTS idx_blog_post_author_id ON "BlogPost"("authorId");
 CREATE INDEX IF NOT EXISTS idx_testimonial_author_id ON "Testimonial"("authorId");
 CREATE INDEX IF NOT EXISTS idx_support_conv_user_id ON "SupportConversation"("userId");
@@ -238,10 +277,7 @@ CREATE INDEX IF NOT EXISTS idx_support_conv_status ON "SupportConversation"(stat
 CREATE INDEX IF NOT EXISTS idx_support_msg_conv_id ON "SupportMessage"("conversationId");
 CREATE INDEX IF NOT EXISTS idx_support_msg_created_at ON "SupportMessage"("createdAt");
 
-
--- 6. FUNCTIONS & TRIGGERS
-
--- UpdatedAt Trigger
+-- 7. FUNCTIONS & TRIGGERS
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -250,7 +286,6 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Apply triggers
 DROP TRIGGER IF EXISTS update_user_updated_at ON "User";
 CREATE TRIGGER update_user_updated_at BEFORE UPDATE ON "User" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -259,9 +294,6 @@ CREATE TRIGGER update_event_updated_at BEFORE UPDATE ON "Event" FOR EACH ROW EXE
 
 DROP TRIGGER IF EXISTS update_blog_post_updated_at ON "BlogPost";
 CREATE TRIGGER update_blog_post_updated_at BEFORE UPDATE ON "BlogPost" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_visa_invitation_updated_at ON "VisaInvitation";
-CREATE TRIGGER update_visa_invitation_updated_at BEFORE UPDATE ON "VisaInvitation" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS update_wallet_updated_at ON "Wallet";
 CREATE TRIGGER update_wallet_updated_at BEFORE UPDATE ON "Wallet" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -291,8 +323,6 @@ BEGIN
     user_city := NEW.raw_user_meta_data->>'city';
     user_address := NEW.raw_user_meta_data->>'address';
 
-    RAISE NOTICE 'Creating user profile for id: %, email: %', NEW.id, NEW.email;
-
     INSERT INTO public."User" (id, email, name, role, phone, country, city, address)
     VALUES (NEW.id, NEW.email, user_name, 'USER', user_phone, user_country, user_city, user_address)
     ON CONFLICT (id) DO NOTHING;
@@ -301,7 +331,7 @@ BEGIN
     INSERT INTO public."Stats" ("userId") VALUES (NEW.id) ON CONFLICT DO NOTHING;
     
     INSERT INTO public."Notification" ("userId", title, message, type)
-    VALUES (NEW.id, 'Welcome to IYDEF!', 'Welcome to our global community!', 'WELCOME');
+    VALUES (NEW.id, 'Welcome to The Voice of Hope Kenya!', 'Thank you for joining our charity family! Together we bring hope to the hopeless and help the needy.', 'WELCOME');
     
     RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
@@ -315,26 +345,21 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
-
--- 7. ENABLE RLS
+-- 8. ENABLE RLS
 ALTER TABLE "User" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Event" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Booking" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "MpesaTransaction" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "BlogPost" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Testimonial" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "VisaInvitation" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Notification" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Wallet" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Stats" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "IdentityVerification" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Proposals" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Applications" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "SupportConversation" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "SupportMessage" ENABLE ROW LEVEL SECURITY;
 
-
--- 8. SECURITY HELPER FUNCTION
--- Critical: Uses SECURITY DEFINER to bypass RLS when checking admin status
+-- 9. SECURITY HELPER FUNCTION
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -345,8 +370,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-
--- 9. RLS POLICIES (Clean Recreations)
+-- 10. RLS POLICIES
 
 -- >>> USERS
 DROP POLICY IF EXISTS "Users can read own data" ON "User";
@@ -357,65 +381,43 @@ CREATE POLICY "Users can read own data" ON "User" FOR SELECT USING (auth.uid() =
 CREATE POLICY "Users can update own profile" ON "User" FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Admins can read all users" ON "User" FOR SELECT USING (is_admin());
 
--- >>> EVENTS (Public Read, Admin Write)
+-- >>> EVENTS
 DROP POLICY IF EXISTS "Public events are viewable by everyone" ON "Event";
 DROP POLICY IF EXISTS "Admins can manage all events" ON "Event";
 
 CREATE POLICY "Public events are viewable by everyone" ON "Event" FOR SELECT USING (true);
 CREATE POLICY "Admins can manage all events" ON "Event" FOR ALL USING (is_admin());
 
--- >>> BOOKINGS (User Own, Admin All)
+-- >>> BOOKINGS (Supports Authenticated Users, Guest Checkout, and Admins)
 DROP POLICY IF EXISTS "Users can read own bookings" ON "Booking";
+DROP POLICY IF EXISTS "Users can view own bookings" ON "Booking";
 DROP POLICY IF EXISTS "Users can insert own bookings" ON "Booking";
+DROP POLICY IF EXISTS "Anyone can insert bookings" ON "Booking";
 DROP POLICY IF EXISTS "Users can update own bookings" ON "Booking";
 DROP POLICY IF EXISTS "Admins can view all bookings" ON "Booking";
 DROP POLICY IF EXISTS "Admins can update all bookings" ON "Booking";
+DROP POLICY IF EXISTS "Service role has full access to bookings" ON "Booking";
 
-CREATE POLICY "Users can read own bookings" ON "Booking" FOR SELECT USING (auth.uid() = "userId");
-CREATE POLICY "Users can insert own bookings" ON "Booking" FOR INSERT WITH CHECK (auth.uid() = "userId");
-CREATE POLICY "Users can update own bookings" ON "Booking" FOR UPDATE USING (auth.uid() = "userId");
+CREATE POLICY "Users can read own bookings" ON "Booking" FOR SELECT USING (auth.uid() = "userId" OR "userId" IS NULL);
+CREATE POLICY "Anyone can insert bookings" ON "Booking" FOR INSERT WITH CHECK (auth.uid() = "userId" OR "userId" IS NULL);
+CREATE POLICY "Users can update own bookings" ON "Booking" FOR UPDATE USING (auth.uid() = "userId" OR "userId" IS NULL);
 CREATE POLICY "Admins can view all bookings" ON "Booking" FOR SELECT USING (is_admin());
 CREATE POLICY "Admins can update all bookings" ON "Booking" FOR UPDATE USING (is_admin());
+CREATE POLICY "Service role has full access to bookings" ON "Booking" FOR ALL TO service_role USING (true) WITH CHECK (true);
 
--- >>> VISA INVITATIONS
-DROP POLICY IF EXISTS "Users can read own visa invitations" ON "VisaInvitation";
-DROP POLICY IF EXISTS "Users can insert own visa invitations" ON "VisaInvitation";
-DROP POLICY IF EXISTS "Users can update own visa invitations" ON "VisaInvitation";
-DROP POLICY IF EXISTS "Admins can view all visa invitations" ON "VisaInvitation";
-DROP POLICY IF EXISTS "Admins can update all visa invitations" ON "VisaInvitation";
+-- >>> MPESA TRANSACTIONS
+DROP POLICY IF EXISTS "Service role has full access to MpesaTransaction" ON "MpesaTransaction";
+DROP POLICY IF EXISTS "Users can view own mpesa transactions" ON "MpesaTransaction";
 
-CREATE POLICY "Users can read own visa invitations" ON "VisaInvitation" FOR SELECT USING (auth.uid() = "userId");
-CREATE POLICY "Users can insert own visa invitations" ON "VisaInvitation" FOR INSERT WITH CHECK (auth.uid() = "userId");
-CREATE POLICY "Users can update own visa invitations" ON "VisaInvitation" FOR UPDATE USING (auth.uid() = "userId");
-CREATE POLICY "Admins can view all visa invitations" ON "VisaInvitation" FOR SELECT USING (is_admin());
-CREATE POLICY "Admins can update all visa invitations" ON "VisaInvitation" FOR UPDATE USING (is_admin());
+CREATE POLICY "Service role has full access to MpesaTransaction" ON "MpesaTransaction" FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Users can view own mpesa transactions" ON "MpesaTransaction" FOR SELECT TO authenticated USING ("userId" = auth.uid() OR is_admin());
 
--- >>> APPLICATIONS (Sponsors/Speakers/etc)
-DROP POLICY IF EXISTS "Users can view their own applications" ON "Applications";
-DROP POLICY IF EXISTS "Users can insert their own applications" ON "Applications";
-DROP POLICY IF EXISTS "Admins can view all applications" ON "Applications";
-DROP POLICY IF EXISTS "Admins can update applications" ON "Applications";
-
-CREATE POLICY "Users can view their own applications" ON "Applications" FOR SELECT USING (auth.uid() = "userId");
-CREATE POLICY "Users can insert their own applications" ON "Applications" FOR INSERT WITH CHECK (auth.uid() = "userId");
-CREATE POLICY "Admins can view all applications" ON "Applications" FOR SELECT USING (is_admin());
-CREATE POLICY "Admins can update applications" ON "Applications" FOR UPDATE USING (is_admin());
-
--- >>> PROPOSALS
-DROP POLICY IF EXISTS "Users can view their own proposals" ON "Proposals";
-DROP POLICY IF EXISTS "Users can insert their own proposals" ON "Proposals";
-DROP POLICY IF EXISTS "Admins can view all proposals" ON "Proposals";
-DROP POLICY IF EXISTS "Admins can update proposals" ON "Proposals";
-
-CREATE POLICY "Users can view their own proposals" ON "Proposals" FOR SELECT USING (auth.uid() = "userId");
-CREATE POLICY "Users can insert their own proposals" ON "Proposals" FOR INSERT WITH CHECK (auth.uid() = "userId");
-CREATE POLICY "Admins can view all proposals" ON "Proposals" FOR SELECT USING (is_admin());
-CREATE POLICY "Admins can update proposals" ON "Proposals" FOR UPDATE USING (is_admin());
-
--- >>> OTHER TABLES (Notification, Wallet, Stats, IdentityVerification)
+-- >>> NOTIFICATIONS, WALLETS, STATS, IDENTITY VERIFICATION
 DROP POLICY IF EXISTS "Users can read own notifications" ON "Notification";
+DROP POLICY IF EXISTS "Users can update own notifications" ON "Notification";
 DROP POLICY IF EXISTS "Admins can manage all notifications" ON "Notification";
 CREATE POLICY "Users can read own notifications" ON "Notification" FOR SELECT USING (auth.uid() = "userId");
+CREATE POLICY "Users can update own notifications" ON "Notification" FOR UPDATE USING (auth.uid() = "userId");
 CREATE POLICY "Admins can manage all notifications" ON "Notification" FOR ALL USING (is_admin());
 
 DROP POLICY IF EXISTS "Users can read own wallet" ON "Wallet";
@@ -445,6 +447,7 @@ DROP POLICY IF EXISTS "Testimonials are publicly readable" ON "Testimonial";
 DROP POLICY IF EXISTS "Users can insert own testimonials" ON "Testimonial";
 DROP POLICY IF EXISTS "Users can update own testimonials" ON "Testimonial";
 DROP POLICY IF EXISTS "Users can delete own testimonials" ON "Testimonial";
+DROP POLICY IF EXISTS "Admins can manage all testimonials" ON "Testimonial";
 CREATE POLICY "Testimonials are publicly readable" ON "Testimonial" FOR SELECT USING (true);
 CREATE POLICY "Users can insert own testimonials" ON "Testimonial" FOR INSERT WITH CHECK (auth.uid() = "authorId");
 CREATE POLICY "Users can update own testimonials" ON "Testimonial" FOR UPDATE USING (auth.uid() = "authorId");
@@ -475,65 +478,23 @@ CREATE POLICY "Users and guests can insert support messages" ON "SupportMessage"
 );
 
 -- >>> STORAGE
--- Consolidate storage policies
-DROP POLICY IF EXISTS "Public Access" ON storage.objects;
+DROP POLICY IF EXISTS "Public Read Access" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Upload" ON storage.objects;
-DROP POLICY IF EXISTS "Public Access to event-media" ON storage.objects;
-DROP POLICY IF EXISTS "Anyone can upload to event-media" ON storage.objects;
-DROP POLICY IF EXISTS "Public Access to visa-documents" ON storage.objects;
-DROP POLICY IF EXISTS "Admins can upload to visa-documents" ON storage.objects;
+DROP POLICY IF EXISTS "Users can manage own objects" ON storage.objects;
 
--- 1. Public Read Access for specific buckets
--- Allows anyone to read objects in these buckets
 CREATE POLICY "Public Read Access" ON storage.objects FOR SELECT
-USING ( bucket_id IN ('documents', 'event-media', 'visa-documents') );
+USING ( bucket_id IN ('documents', 'event-media') );
 
--- 2. Authenticated Upload
--- Allows only logged-in users to upload to specific buckets
 CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT
 WITH CHECK ( 
   auth.role() = 'authenticated' AND 
   (bucket_id = 'documents' OR bucket_id = 'event-media')
 );
 
--- 3. Admin Only Upload (Visa Documents)
-CREATE POLICY "Admin Upload Visa" ON storage.objects FOR INSERT
-WITH CHECK ( 
-  bucket_id = 'visa-documents' AND 
-  public.is_admin()
-);
-
--- 4. Users can delete/update their own documents
 CREATE POLICY "Users can manage own objects" ON storage.objects 
 FOR ALL 
 USING ( auth.uid()::text = (storage.foldername(name))[1] )
 WITH CHECK ( auth.uid()::text = (storage.foldername(name))[1] );
-
-
--- 10. CRITICAL DATA FIX
--- Automatically sync missing profiles for existing auth users
-DO $$
-BEGIN
-    INSERT INTO public."User" (id, email, name, role, "createdAt")
-    SELECT 
-        au.id, 
-        au.email, 
-        COALESCE(au.raw_user_meta_data->>'name', 'User'),
-        'USER',
-        au.created_at
-    FROM auth.users au
-    LEFT JOIN public."User" u ON au.id = u.id
-    WHERE u.id IS NULL
-    ON CONFLICT (id) DO NOTHING;
-
-    -- Ensure associated records exist
-    INSERT INTO public."Wallet" ("userId") 
-    SELECT id FROM public."User" WHERE id NOT IN (SELECT "userId" FROM public."Wallet");
-
-    INSERT INTO public."Stats" ("userId") 
-    SELECT id FROM public."User" WHERE id NOT IN (SELECT "userId" FROM public."Stats");
-END
-$$;
 
 -- 11. ENABLE REALTIME
 DO $$ BEGIN

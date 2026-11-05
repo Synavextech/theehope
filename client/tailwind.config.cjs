@@ -42,12 +42,11 @@ module.exports = {
                     foreground: "hsl(var(--card-foreground))",
                 },
                 brand: {
-                    primary: "#FFFFFF",
-                    secondary: "#CCB88B",
-                    accent: "#2E5E43",
-                    white: "#FFFFFF",
+                    surface: "#f2f2f2",
+                    primary: "#04047a",
+                    accent: "#b8240d",
                     gold: "#CCB88B",
-                    green: "#2E5E43",
+                    white: "#FFFFFF",
                 },
             },
             borderRadius: {

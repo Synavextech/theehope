@@ -15,7 +15,7 @@ export default function EventCard({ event }: { event: any }) {
                     alt={event.title}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 />
-                <div className="absolute top-4 left-4 bg-white/95 dark:bg-slate-900/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-[#2E5E43] dark:text-[#CCB88B] shadow-sm border border-[#CCB88B]/30">
+                <div className="absolute top-4 left-4 bg-card/95 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-primary shadow-sm border border-border">
                     {event.category || "Charity Outreach"}
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent p-4">
@@ -31,7 +31,7 @@ export default function EventCard({ event }: { event: any }) {
                     {event.title}
                 </CardTitle>
                 <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
-                    <MapPin className="h-3.5 w-3.5 text-[#CCB88B]" />
+                    <MapPin className="h-3.5 w-3.5 text-[#b8240d]" />
                     <span className="line-clamp-1">{event.location}</span>
                 </div>
             </CardHeader>
@@ -45,14 +45,14 @@ export default function EventCard({ event }: { event: any }) {
             <CardFooter className="pt-0 border-t border-border bg-muted/20">
                 <div className="flex items-center justify-between w-full py-3">
                     <div className="flex items-center gap-1.5">
-                        <Heart className="w-3.5 h-3.5 text-[#2E5E43] dark:text-[#CCB88B] fill-current" />
-                        <span className="text-xs font-bold text-[#2E5E43] dark:text-[#CCB88B]">
-                            {Number(event.target_amount) > 0 ? `Target: KES ${Number(event.target_amount).toLocaleString()}` : "Voluntary Contribution"}
+                        <Heart className="w-3.5 h-3.5 text-[#b8240d] fill-current" />
+                        <span className="text-xs font-bold text-foreground">
+                            {Number(event.target_amount) > 0 ? `Target: KES ${Number(event.target_amount).toLocaleString()}` : "Open Contribution / Pledge"}
                         </span>
                     </div>
                     <Link href={`${isUpcoming ? '/upcoming-events' : '/past-events'}?id=${event.id}`}>
-                        <Button variant="ghost" size="sm" className="group/btn text-[#2E5E43] dark:text-[#CCB88B] font-bold hover:bg-[#2E5E43]/10 rounded-xl">
-                            {isUpcoming ? "Attend / Donate" : "View Moments"}{" "}
+                        <Button variant="ghost" size="sm" className="group/btn text-primary font-bold hover:bg-primary/10 rounded-xl">
+                            {isUpcoming ? "Donate / Pledge" : "View Moments"}{" "}
                             <MoveRight className="ml-1.5 h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
                         </Button>
                     </Link>

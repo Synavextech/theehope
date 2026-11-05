@@ -40,21 +40,21 @@ export default function PostForm() {
     };
 
     return (
-        <Card>
+        <Card className="bg-card border-border">
             <CardHeader>
-                <CardTitle>Share Your Story</CardTitle>
+                <CardTitle className="text-foreground">Share Your Story</CardTitle>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <Input name="title" placeholder="Title" required />
-                    <Input name="imageUrl" placeholder="Image URL (optional)" />
+                    <Input name="title" placeholder="Title" required className="bg-background" />
+                    <Input name="imageUrl" placeholder="Image URL (optional)" className="bg-background" />
                     <textarea
                         name="content"
-                        className="w-full min-h-[150px] p-2 border rounded-md focus:ring-2 focus:ring-primary outline-none"
+                        className="w-full min-h-[150px] p-3 border border-border bg-background text-foreground rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm"
                         placeholder="Share your experience..."
                         required
                     />
-                    <Button type="submit" disabled={isSubmitting} className="w-full">
+                    <Button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground font-bold">
                         Submit Post
                     </Button>
                 </form>

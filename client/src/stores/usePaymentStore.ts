@@ -1,70 +1,36 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 export interface PaymentData {
     amount: number;
+    currency?: string;
     bookingId: string;
-    type: 'event' | 'visa' | 'application';
+    type: 'event' | 'donation' | 'pledge_installment';
     eventId?: string;
     category?: string;
-    returnUrl?: string;
     title?: string;
     description?: string;
-    currency?: string;
-    phoneNumber?: string;
+    returnUrl?: string;
+    guestName?: string;
+    guestEmail?: string;
+    guestPhone?: string;
+    isInstallment?: boolean;
+    pledgedAmount?: number;
 }
 
 interface PaymentStore {
     isOpen: boolean;
     paymentData: PaymentData | null;
     isProcessing: boolean;
-    error: string | null;
-    selectedMethod: 'mpesa' | 'cash' | 'stripe' | 'paypal' | null;
-
     openPayment: (data: PaymentData) => void;
     closePayment: () => void;
     setIsProcessing: (isProcessing: boolean) => void;
-    setError: (error: string | null) => void;
-    setSelectedMethod: (method: 'mpesa' | 'cash' | 'stripe' | 'paypal' | null) => void;
-    reset: () => void;
 }
 
 export const usePaymentStore = create<PaymentStore>((set) => ({
     isOpen: false,
     paymentData: null,
     isProcessing: false,
-    error: null,
-    selectedMethod: null,
-
-    openPayment: (data: PaymentData) =>
-        set({
-            isOpen: true,
-            paymentData: data,
-            isProcessing: false,
-            error: null,
-            selectedMethod: null
-        }),
-
-    closePayment: () =>
-        set({
-            isOpen: false,
-            paymentData: null,
-            isProcessing: false,
-            error: null,
-            selectedMethod: null
-        }),
-
-    setIsProcessing: (isProcessing: boolean) => set({ isProcessing }),
-
-    setError: (error: string | null) => set({ error }),
-
-    setSelectedMethod: (method: 'mpesa' | 'cash' | 'stripe' | 'paypal' | null) => set({ selectedMethod: method }),
-
-    reset: () =>
-        set({
-            isOpen: false,
-            paymentData: null,
-            isProcessing: false,
-            error: null,
-            selectedMethod: null
-        })
+    openPayment: (data) => set({ isOpen: true, paymentData: data, isProcessing: false }),
+    closePayment: () => set({ isOpen: false, paymentData: null, isProcessing: false }),
+    setIsProcessing: (isProcessing) => set({ isProcessing }),
 }));

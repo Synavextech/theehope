@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { supabase } from "@/lib/supabase";
@@ -21,7 +21,10 @@ import {
     Smile,
     HeartHandshake,
     Coins,
-    Loader2
+    Loader2,
+    Bell,
+    Clock,
+    UserCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { generateTicketPDF } from "@/lib/ticket-generator";
@@ -35,6 +38,11 @@ interface EventDonationModalProps {
         amount: number;
         title: string;
         currency?: string;
+        guestName?: string;
+        guestEmail?: string;
+        guestPhone?: string;
+        isInstallment?: boolean;
+        pledgedAmount?: number;
     }) => void;
 }
 
@@ -48,8 +56,13 @@ export default function EventDonationModal({
     const [, setLocation] = useLocation();
     const { toast } = useToast();
 
+    // Guest Supporter Details (used when !user)
+    const [guestName, setGuestName] = useState<string>("");
+    const [guestPhone, setGuestPhone] = useState<string>("");
+    const [guestEmail, setGuestEmail] = useState<string>("");
+
     // Mode: ATTENDING vs DONATING_ONLY
-    const [attendanceType, setAttendanceType] = useState<"ATTENDING" | "DONATING_ONLY">("ATTENDING");
+    const [attendanceType, setAttendanceType] = useState<"ATTENDING" | "DONATING_ONLY">("DONATING_ONLY");
 
     // Accepted Item contributions
     const contributionOptions = [
@@ -66,14 +79,19 @@ export default function EventDonationModal({
         { id: "Self", label: "Self (Presence & Time)", icon: "🤝" }
     ];
 
-    const [selectedContributions, setSelectedContributions] = useState<string[]>(["Self"]);
+    const [selectedContributions, setSelectedContributions] = useState<string[]>(["Money"]);
 
-    // Delivery method: automatically defaults to in-person delivery on event day
+    // Delivery method
     const [deliveryMethod, setDeliveryMethod] = useState<"IN_PERSON_EVENT_DAY" | "ONLINE_DELIVERY">("IN_PERSON_EVENT_DAY");
 
-    // Financial donation details in Kenya Shillings (KES)
-    const [moneyPaymentMethod, setMoneyPaymentMethod] = useState<"ONLINE" | "CASH_EVENT_DAY">("ONLINE");
+    // Financial contribution mode: ONLINE (Instant Full Donation), PLEDGE (Pay in Bits with Reminders), or CASH_EVENT_DAY
+    const [moneyPaymentMethod, setMoneyPaymentMethod] = useState<"ONLINE" | "PLEDGE" | "CASH_EVENT_DAY">("ONLINE");
     const [donationAmount, setDonationAmount] = useState<number>(1000);
+
+    // Pledge ("Pay in Bits") state
+    const [pledgedAmount, setPledgedAmount] = useState<number>(5000);
+    const [initialBitAmount, setInitialBitAmount] = useState<number>(1000);
+    const [reminderFrequency, setReminderFrequency] = useState<"DAILY" | "EVERY_3_DAYS" | "WEEKLY">("EVERY_3_DAYS");
 
     // Event Day Volunteer Roles
     const [volunteerActivities, setVolunteerActivities] = useState<string[]>(["Work in kitchen"]);
@@ -85,7 +103,28 @@ export default function EventDonationModal({
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    useEffect(() => {
+        if (event) {
+            if (event.defaultDonationAmount && Number(event.defaultDonationAmount) > 0) {
+                setDonationAmount(Number(event.defaultDonationAmount));
+                setPledgedAmount(Math.max(Number(event.defaultDonationAmount), 2000));
+            }
+            if (event.defaultMode === 'PLEDGE') {
+                setSelectedContributions((prev) => prev.includes("Money") ? prev : ["Money", ...prev]);
+                setMoneyPaymentMethod("PLEDGE");
+            } else if (event.defaultMode === 'DIRECT') {
+                setSelectedContributions((prev) => prev.includes("Money") ? prev : ["Money", ...prev]);
+                setMoneyPaymentMethod("ONLINE");
+            }
+        }
+    }, [event]);
+
     if (!event) return null;
+
+    const eventDateObj = event.date ? new Date(event.date) : new Date(Date.now() + 14 * 86400000);
+    const diffMs = Math.max(0, eventDateObj.getTime() - Date.now());
+    const countdownDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const countdownHours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
 
     const toggleContribution = (item: string) => {
         let updated: string[];
@@ -96,7 +135,6 @@ export default function EventDonationModal({
         }
         setSelectedContributions(updated);
 
-        // Rule: If selected items are physical items, automatically adopt to be delivered on event day
         const hasPhysical = updated.some((c) => c !== "Money" && c !== "Self");
         if (hasPhysical) {
             setDeliveryMethod("IN_PERSON_EVENT_DAY");
@@ -114,79 +152,150 @@ export default function EventDonationModal({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Validate Guest fields when not signed in
         if (!user) {
+            if (!guestName.trim() || !guestPhone.trim()) {
+                toast({
+                    title: "Your Contact Details Required",
+                    description: "Please enter your Full Name and Phone Number so we can issue your receipt and send outreach updates.",
+                    variant: "destructive"
+                });
+                return;
+            }
+        }
+
+        const hasMoney = selectedContributions.includes("Money");
+        const isPledge = hasMoney && moneyPaymentMethod === "PLEDGE";
+        const isCashOnArrival = hasMoney && moneyPaymentMethod === "CASH_EVENT_DAY";
+        const isDirectOnline = hasMoney && moneyPaymentMethod === "ONLINE";
+
+        if (isPledge && pledgedAmount <= 0) {
             toast({
-                title: "Sign in Required",
-                description: "Please sign in or create an account to record your attendance or donation.",
+                title: "Invalid Pledge Amount",
+                description: "Please enter a valid total pledge amount in KES.",
                 variant: "destructive"
             });
-            setLocation(`/auth?redirectTo=${encodeURIComponent(window.location.pathname + window.location.search)}`);
             return;
         }
 
+        const amountToPayNow = isDirectOnline
+            ? Math.max(0, Number(donationAmount))
+            : isPledge
+                ? Math.max(0, Number(initialBitAmount))
+                : isCashOnArrival
+                    ? Math.max(0, Number(donationAmount))
+                    : 0;
+
+        const shouldOpenCheckout = (isDirectOnline && amountToPayNow > 0) || (isPledge && amountToPayNow > 0);
+        const finalStatus = shouldOpenCheckout ? "PENDING" : isPledge ? "PLEDGED" : "CONFIRMED";
+        const paymentStatus = shouldOpenCheckout
+            ? "PENDING"
+            : isPledge
+                ? "PARTIAL_PLEDGE"
+                : isCashOnArrival
+                    ? "PENDING_CASH_ON_ARRIVAL"
+                    : "PAID";
+        const paymentMethod = shouldOpenCheckout
+            ? "MPESA"
+            : isPledge
+                ? "PLEDGE"
+                : isCashOnArrival
+                    ? "CASH_EVENT_DAY"
+                    : "VOLUNTEER_PLEDGE";
+
         setIsSubmitting(true);
         try {
-            const hasMoney = selectedContributions.includes("Money");
-            const shouldPayOnline = hasMoney && moneyPaymentMethod === "ONLINE" && donationAmount > 0;
-            const isCashOnArrival = hasMoney && moneyPaymentMethod === "CASH_EVENT_DAY";
-            const finalAmount = hasMoney ? donationAmount : 0;
-            const finalStatus = shouldPayOnline ? "PENDING" : "CONFIRMED";
-            const paymentStatus = shouldPayOnline ? "PENDING" : isCashOnArrival ? "PENDING_CASH_ON_ARRIVAL" : "PAID";
-            const paymentMethod = shouldPayOnline ? "MPESA" : isCashOnArrival ? "CASH_EVENT_DAY" : "VOLUNTEER_PLEDGE";
+            const payload = {
+                userId: user?.id || null,
+                eventId: event.id || null,
+                guest_name: !user ? guestName.trim() : (profile?.name || null),
+                guest_email: !user ? (guestEmail.trim() || null) : (user?.email || null),
+                guest_phone: !user ? guestPhone.trim() : (profile?.phone || null),
+                category: attendanceType === "ATTENDING" ? "ATTENDEE_CONTRIBUTOR" : "DONOR_SUPPORTER",
+                amountPaid: shouldOpenCheckout ? amountToPayNow : (isCashOnArrival ? amountToPayNow : 0),
+                pledged_amount: isPledge ? Number(pledgedAmount) : 0,
+                is_pledge: isPledge,
+                reminder_frequency: isPledge ? reminderFrequency : "NONE",
+                pledge_due_date: isPledge ? eventDateObj.toISOString() : null,
+                status: finalStatus,
+                payment_status: paymentStatus,
+                payment_method: paymentMethod,
+                attendance_type: attendanceType,
+                delivery_method: deliveryMethod,
+                item_contributions: selectedContributions,
+                volunteer_activities: attendanceType === "ATTENDING" ? volunteerActivities : [],
+                mingle_notes: mingleNotes.trim() || null,
+                seek_to_adopt: seekToAdopt,
+                wish_note: wishNote.trim() || null
+            };
 
-            const { data: booking, error } = await supabase
-                .from("Booking")
-                .insert({
-                    userId: user.id,
-                    eventId: event.id,
-                    category: attendanceType === "ATTENDING" ? "ATTENDEE_CONTRIBUTOR" : "DONOR_SUPPORTER",
-                    amountPaid: finalAmount,
-                    currency: "KES",
-                    status: finalStatus,
-                    payment_status: paymentStatus,
-                    payment_method: paymentMethod,
-                    mode: "PHYSICAL",
-                    attendance_type: attendanceType,
-                    delivery_method: deliveryMethod,
-                    item_contributions: selectedContributions,
-                    volunteer_activities: attendanceType === "ATTENDING" ? volunteerActivities : [],
-                    mingle_notes: mingleNotes.trim() || null,
-                    seek_to_adopt: seekToAdopt,
-                    wish_note: wishNote.trim() || null
-                })
-                .select()
-                .single();
+            let createdBooking: any = null;
 
-            if (error) throw error;
+            // Create via backend endpoint (supports both guest & authenticated users)
+            const response = await fetch("/api/bookings/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
 
-            if (shouldPayOnline && onProceedToPayment) {
-                // Open M-Pesa / Card checkout modal
+            if (response.ok) {
+                const resJson = await response.json();
+                createdBooking = resJson.booking;
+            } else {
+                // Fallback direct Supabase insert
+                const { data: directBooking, error: directError } = await supabase
+                    .from("Booking")
+                    .insert(payload)
+                    .select()
+                    .single();
+                if (directError) throw directError;
+                createdBooking = directBooking;
+            }
+
+            const donorDisplayName = profile?.name || guestName.trim() || user?.email?.split('@')[0] || "Valued Supporter";
+            const donorDisplayEmail = user?.email || guestEmail.trim() || "";
+            const donorDisplayPhone = profile?.phone || guestPhone.trim() || "";
+
+            if (shouldOpenCheckout && onProceedToPayment) {
                 onProceedToPayment({
-                    id: booking.id,
-                    amount: finalAmount,
-                    title: `Charity Contribution: ${event.title}`,
-                    currency: "KES"
+                    id: createdBooking.id,
+                    amount: amountToPayNow,
+                    title: isPledge
+                        ? `Pledge Installment Bit: ${event.title}`
+                        : `Charity Contribution: ${event.title}`,
+                    currency: "KES",
+                    guestName: donorDisplayName,
+                    guestEmail: donorDisplayEmail,
+                    guestPhone: donorDisplayPhone,
+                    isInstallment: isPledge,
+                    pledgedAmount: isPledge ? Number(pledgedAmount) : undefined
                 });
                 onClose();
             } else {
-                // Cash pledge or in-kind / presence donation: Generate confirmation ticket PDF immediately
                 generateTicketPDF({
-                    eventTitle: event.title,
-                    eventDate: format(new Date(event.date), 'PPPP'),
-                    eventLocation: event.location,
-                    userName: profile?.name || user?.email?.split('@')[0] || "Contributor",
-                    userEmail: user?.email || "",
-                    category: attendanceType === "ATTENDING" ? "In-Person Attendee & Volunteer" : "Remote Donor & Well-Wisher",
-                    amountPaid: finalAmount,
-                    bookingId: booking.id
+                    eventTitle: event.title || "The Voice of Hope Charity Outreach",
+                    eventDate: format(eventDateObj, 'PPPP'),
+                    eventLocation: event.location || "Nairobi, Kenya",
+                    userName: donorDisplayName,
+                    userEmail: donorDisplayEmail,
+                    category: isPledge
+                        ? `Pledge Registered (KES ${Number(pledgedAmount).toLocaleString()})`
+                        : attendanceType === "ATTENDING"
+                            ? "In-Person Attendee & Volunteer"
+                            : "Remote Donor & Well-Wisher",
+                    amountPaid: amountToPayNow,
+                    bookingId: createdBooking.id
                 });
 
                 toast({
-                    title: isCashOnArrival ? "Attendance & Cash Pledge Confirmed! 🤝" : "Registration Confirmed! ❤️",
-                    description:
-                        attendanceType === "ATTENDING"
-                            ? "Your event pass has been downloaded. We can't wait to cook and spend quality time with you on event day!"
-                            : "Thank you for your generous contribution and loving wishes for our community!"
+                    title: isPledge
+                        ? `Pledge of KES ${Number(pledgedAmount).toLocaleString()} Recorded! 🔔`
+                        : isCashOnArrival
+                            ? "Attendance & Cash Pledge Confirmed! 🤝"
+                            : "Registration Confirmed! ❤️",
+                    description: isPledge
+                        ? `Countdown: ${countdownDays}d ${countdownHours}h left! You will receive ${reminderFrequency.toLowerCase().replace(/_/g, ' ')} reminders and can pay in bits anytime in My Bookings & Pledges.`
+                        : "Your official pass/receipt has been downloaded. Thank you for standing with The Voice of Hope Kenya!"
                 });
                 onClose();
             }
@@ -209,84 +318,144 @@ export default function EventDonationModal({
             <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto bg-card border-border shadow-2xl p-6 sm:p-8 rounded-3xl">
                 <DialogHeader className="space-y-1">
                     <div className="flex items-center gap-2 mb-1">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#2E5E43] animate-pulse"></span>
-                        <span className="text-xs font-bold uppercase tracking-widest text-[#2E5E43] dark:text-[#CCB88B]">
-                            The Voice of strength Kenya — Charity Outreach
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#b8240d] animate-pulse"></span>
+                        <span className="text-xs font-bold uppercase tracking-widest text-primary">
+                            The Voice of Hope Kenya — Charity Outreach & Giving
                         </span>
                     </div>
                     <DialogTitle className="text-2xl sm:text-3xl font-black text-foreground">
-                        {event.title}
+                        {event.title || "Support Our Charity Outreach"}
                     </DialogTitle>
                     <DialogDescription className="text-xs sm:text-sm text-muted-foreground flex flex-wrap items-center gap-3 pt-1">
                         <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                            <Calendar className="w-4 h-4 text-[#2E5E43] dark:text-[#CCB88B]" />
-                            {format(new Date(event.date), "PPP")}
+                            <Calendar className="w-4 h-4 text-primary" />
+                            {format(eventDateObj, "PPP")}
                         </span>
                         <span>•</span>
                         <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                            <MapPin className="w-4 h-4 text-[#CCB88B]" />
-                            {event.location}
+                            <MapPin className="w-4 h-4 text-[#b8240d]" />
+                            {event.location || "Nairobi, Kenya"}
+                        </span>
+                        <span>•</span>
+                        <span className="inline-flex items-center gap-1 font-bold text-[#b8240d]">
+                            <Clock className="w-3.5 h-3.5" />
+                            {countdownDays}d {countdownHours}h left
                         </span>
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6 pt-4">
-                    {/* Primary Step: Attendance Choice */}
+                    {/* Guest Supporter Details (When not logged in — No account required) */}
+                    {!user && (
+                        <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20 space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <Label className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                                    <UserCheck className="w-4 h-4" />
+                                    Quick Guest Details (Donate Without Creating an Account)
+                                </Label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        onClose();
+                                        setLocation(`/auth?redirectTo=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+                                    }}
+                                    className="text-[11px] font-bold text-primary underline hover:opacity-80"
+                                >
+                                    Have an account? Sign in
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-foreground">Full Name *</Label>
+                                    <Input
+                                        required
+                                        value={guestName}
+                                        onChange={(e) => setGuestName(e.target.value)}
+                                        placeholder="e.g. Jane Wanjiku"
+                                        className="h-10 text-xs bg-background"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-foreground">Phone (M-Pesa / SMS) *</Label>
+                                    <Input
+                                        required
+                                        type="tel"
+                                        value={guestPhone}
+                                        onChange={(e) => setGuestPhone(e.target.value)}
+                                        placeholder="07XX XXX XXX"
+                                        className="h-10 text-xs bg-background"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold text-foreground">Email (Optional)</Label>
+                                    <Input
+                                        type="email"
+                                        value={guestEmail}
+                                        onChange={(e) => setGuestEmail(e.target.value)}
+                                        placeholder="you@example.com"
+                                        className="h-10 text-xs bg-background"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Primary Step: Participation Choice */}
                     <div className="space-y-3">
                         <Label className="text-sm font-bold text-foreground">
                             1. How would you love to participate?
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div
-                                onClick={() => setAttendanceType("ATTENDING")}
+                                onClick={() => setAttendanceType("DONATING_ONLY")}
                                 className={cn(
                                     "p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between",
-                                    attendanceType === "ATTENDING"
-                                        ? "border-[#2E5E43] bg-[#2E5E43]/5 ring-2 ring-[#2E5E43]/20 shadow-sm"
-                                        : "border-border hover:border-[#CCB88B]/60 bg-card"
+                                    attendanceType === "DONATING_ONLY"
+                                        ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm"
+                                        : "border-border hover:border-primary/40 bg-card"
                                 )}
                             >
                                 <div className="flex items-start justify-between mb-2">
-                                    <div className="w-10 h-10 rounded-xl bg-[#2E5E43] text-white flex items-center justify-center font-bold">
-                                        <Users className="w-5 h-5" />
+                                    <div className="w-10 h-10 rounded-xl bg-[#b8240d] text-white flex items-center justify-center font-bold">
+                                        <Heart className="w-5 h-5 fill-white" />
                                     </div>
-                                    {attendanceType === "ATTENDING" && (
-                                        <CheckCircle2 className="w-5 h-5 text-[#2E5E43]" />
+                                    {attendanceType === "DONATING_ONLY" && (
+                                        <CheckCircle2 className="w-5 h-5 text-primary" />
                                     )}
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-base text-foreground">
-                                        I will attend in person
+                                        Donate or Make a Pledge
                                     </h4>
                                     <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                                        Join us on event day to cook in the kitchen, mentor youth, play games, and distribute gifts directly.
+                                        Give any amount now or pledge to pay in bits with regular countdown reminders.
                                     </p>
                                 </div>
                             </div>
 
                             <div
-                                onClick={() => setAttendanceType("DONATING_ONLY")}
+                                onClick={() => setAttendanceType("ATTENDING")}
                                 className={cn(
                                     "p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between",
-                                    attendanceType === "DONATING_ONLY"
-                                        ? "border-[#2E5E43] bg-[#2E5E43]/5 ring-2 ring-[#2E5E43]/20 shadow-sm"
-                                        : "border-border hover:border-[#CCB88B]/60 bg-card"
+                                    attendanceType === "ATTENDING"
+                                        ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm"
+                                        : "border-border hover:border-primary/40 bg-card"
                                 )}
                             >
                                 <div className="flex items-start justify-between mb-2">
-                                    <div className="w-10 h-10 rounded-xl bg-[#CCB88B] text-[#2E5E43] flex items-center justify-center font-bold">
-                                        <Heart className="w-5 h-5 fill-[#2E5E43]" />
+                                    <div className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center font-bold">
+                                        <Users className="w-5 h-5" />
                                     </div>
-                                    {attendanceType === "DONATING_ONLY" && (
-                                        <CheckCircle2 className="w-5 h-5 text-[#2E5E43]" />
+                                    {attendanceType === "ATTENDING" && (
+                                        <CheckCircle2 className="w-5 h-5 text-primary" />
                                     )}
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-base text-foreground">
-                                        I want to donate & wish you well
+                                        Attend & Volunteer in Person
                                     </h4>
                                     <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                                        Cannot be there in person, but sending financial support or supplies along with a message of hope.
+                                        Join us on outreach day to cook in the kitchen, mentor youth, play games, and share gifts.
                                     </p>
                                 </div>
                             </div>
@@ -312,7 +481,7 @@ export default function EventDonationModal({
                                         className={cn(
                                             "p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 text-left transition-all",
                                             isSelected
-                                                ? "border-[#2E5E43] bg-[#2E5E43] text-white shadow-sm"
+                                                ? "border-primary bg-primary text-primary-foreground shadow-sm"
                                                 : "border-border bg-muted/30 hover:bg-muted text-foreground"
                                         )}
                                     >
@@ -324,96 +493,206 @@ export default function EventDonationModal({
                         </div>
                     </div>
 
-                    {/* Step 3: Financial Donation Details (If Money is selected) */}
+                    {/* Step 3: Financial Donation or Pledge Details */}
                     {selectedContributions.includes("Money") && (
-                        <div className="p-4 rounded-2xl bg-[#2E5E43]/5 border border-[#2E5E43]/20 space-y-3">
+                        <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 space-y-4">
                             <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                <Coins className="w-4 h-4 text-[#2E5E43] dark:text-[#CCB88B]" />
-                                Voluntary Financial Contribution (Kenya Shillings - KES)
+                                <Coins className="w-4 h-4 text-primary" />
+                                3. Choose How You Would Like to Give (Kenya Shillings - KES)
                             </Label>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                                 <button
                                     type="button"
                                     onClick={() => setMoneyPaymentMethod("ONLINE")}
                                     className={cn(
-                                        "p-2.5 rounded-xl border font-bold flex items-center justify-center gap-2 transition-all",
+                                        "p-3 rounded-xl border font-bold flex flex-col items-center justify-center gap-1 transition-all",
                                         moneyPaymentMethod === "ONLINE"
-                                            ? "bg-[#2E5E43] text-white border-[#2E5E43]"
+                                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
                                             : "bg-card border-border text-foreground hover:bg-muted"
                                     )}
                                 >
-                                    <span>Lipa Na M-Pesa / Online Card</span>
+                                    <span>Donate Full Amount Now</span>
+                                    <span className="text-[10px] opacity-80 font-normal">M-Pesa / Card / PayPal</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMoneyPaymentMethod("PLEDGE")}
+                                    className={cn(
+                                        "p-3 rounded-xl border font-bold flex flex-col items-center justify-center gap-1 transition-all",
+                                        moneyPaymentMethod === "PLEDGE"
+                                            ? "bg-[#b8240d] text-white border-[#b8240d] shadow-sm"
+                                            : "bg-card border-border text-foreground hover:bg-muted"
+                                    )}
+                                >
+                                    <span>Make a Pledge (Pay in Bits)</span>
+                                    <span className="text-[10px] opacity-80 font-normal">Installments + Reminders</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setMoneyPaymentMethod("CASH_EVENT_DAY")}
                                     className={cn(
-                                        "p-2.5 rounded-xl border font-bold flex items-center justify-center gap-2 transition-all",
+                                        "p-3 rounded-xl border font-bold flex flex-col items-center justify-center gap-1 transition-all",
                                         moneyPaymentMethod === "CASH_EVENT_DAY"
-                                            ? "bg-[#2E5E43] text-white border-[#2E5E43]"
+                                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
                                             : "bg-card border-border text-foreground hover:bg-muted"
                                     )}
                                 >
-                                    <span>Pay on Arrival (Cash on Event Day)</span>
+                                    <span>Cash on Outreach Day</span>
+                                    <span className="text-[10px] opacity-80 font-normal">Pay at Venue Reception</span>
                                 </button>
                             </div>
 
-                            {/* Preset Buttons in KES */}
-                            <div className="space-y-2 pt-1">
-                                <div className="flex flex-wrap gap-2">
-                                    {[500, 1000, 2500, 5000, 10000].map((amt) => (
-                                        <button
-                                            type="button"
-                                            key={amt}
-                                            onClick={() => setDonationAmount(amt)}
-                                            className={cn(
-                                                "flex-1 min-w-[70px] py-2 rounded-xl border text-xs font-bold transition-all",
-                                                donationAmount === amt
-                                                    ? "bg-[#CCB88B] text-[#2E5E43] border-[#CCB88B] shadow-sm"
-                                                    : "bg-card border-border text-foreground hover:bg-muted"
-                                            )}
-                                        >
-                                            KES {amt.toLocaleString()}
-                                        </button>
-                                    ))}
-                                </div>
+                            {moneyPaymentMethod === "PLEDGE" ? (
+                                <div className="space-y-4 pt-2 border-t border-border">
+                                    <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Bell className="w-4 h-4 text-[#b8240d] animate-bounce" />
+                                            <span className="text-xs font-bold text-foreground">
+                                                Pledge Countdown to Outreach Day:
+                                            </span>
+                                        </div>
+                                        <span className="text-xs font-black text-[#b8240d] px-2.5 py-1 rounded-full bg-[#b8240d]/10">
+                                            {countdownDays} Days, {countdownHours} Hrs Left
+                                        </span>
+                                    </div>
 
-                                <div className="flex items-center gap-2 pt-1">
-                                    <span className="text-xs font-medium text-muted-foreground">Custom Amount (KES):</span>
-                                    <Input
-                                        type="number"
-                                        min={50}
-                                        value={donationAmount}
-                                        onChange={(e) => setDonationAmount(Number(e.target.value))}
-                                        className="h-9 w-36 text-sm font-bold"
-                                    />
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-foreground">Total Amount You Are Pledging (KES):</Label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {[2000, 5000, 10000, 25000, 50000].map((amt) => (
+                                                <button
+                                                    type="button"
+                                                    key={amt}
+                                                    onClick={() => {
+                                                        setPledgedAmount(amt);
+                                                        if (initialBitAmount > amt) setInitialBitAmount(Math.round(amt / 4));
+                                                    }}
+                                                    className={cn(
+                                                        "flex-1 min-w-[75px] py-2 rounded-xl border text-xs font-bold transition-all",
+                                                        pledgedAmount === amt
+                                                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                                            : "bg-card border-border text-foreground hover:bg-muted"
+                                                    )}
+                                                >
+                                                    KES {amt.toLocaleString()}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold text-foreground">Custom Total Pledge (KES)</Label>
+                                            <Input
+                                                type="number"
+                                                min={100}
+                                                value={pledgedAmount}
+                                                onChange={(e) => setPledgedAmount(Number(e.target.value))}
+                                                className="h-10 font-bold bg-background"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold text-foreground">
+                                                First Bit to Pay Today (KES) <span className="text-[10px] text-muted-foreground">(0 to pay later)</span>
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                max={pledgedAmount}
+                                                value={initialBitAmount}
+                                                onChange={(e) => setInitialBitAmount(Number(e.target.value))}
+                                                className="h-10 font-bold bg-background"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-foreground">
+                                            Regular Countdown Reminder Frequency:
+                                        </Label>
+                                        <div className="grid grid-cols-3 gap-2 text-xs">
+                                            {[
+                                                { id: "DAILY", label: "Daily Reminder" },
+                                                { id: "EVERY_3_DAYS", label: "Every 3 Days" },
+                                                { id: "WEEKLY", label: "Weekly Reminder" }
+                                            ].map((freq) => (
+                                                <button
+                                                    type="button"
+                                                    key={freq.id}
+                                                    onClick={() => setReminderFrequency(freq.id as any)}
+                                                    className={cn(
+                                                        "py-2 px-3 rounded-xl border font-bold transition-all",
+                                                        reminderFrequency === freq.id
+                                                            ? "bg-[#b8240d] text-white border-[#b8240d]"
+                                                            : "bg-card border-border text-foreground hover:bg-muted"
+                                                    )}
+                                                >
+                                                    {freq.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            We will send you gentle countdown reminders so you can pay your pledge in smaller bits at your convenience before the outreach date.
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="space-y-2 pt-1">
+                                    <div className="flex flex-wrap gap-2">
+                                        {[500, 1000, 2500, 5000, 10000].map((amt) => (
+                                            <button
+                                                type="button"
+                                                key={amt}
+                                                onClick={() => setDonationAmount(amt)}
+                                                className={cn(
+                                                    "flex-1 min-w-[70px] py-2 rounded-xl border text-xs font-bold transition-all",
+                                                    donationAmount === amt
+                                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                                        : "bg-card border-border text-foreground hover:bg-muted"
+                                                )}
+                                            >
+                                                KES {amt.toLocaleString()}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <span className="text-xs font-medium text-muted-foreground">Enter Any Amount You Wish (KES):</span>
+                                        <Input
+                                            type="number"
+                                            min={10}
+                                            value={donationAmount}
+                                            onChange={(e) => setDonationAmount(Number(e.target.value))}
+                                            className="h-10 w-40 text-sm font-bold bg-background"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {/* Step 4: Automatic Delivery Notice for Physical Items */}
+                    {/* Step 4: Physical Items Notice */}
                     {hasPhysicalItems && (
-                        <div className="p-3.5 rounded-2xl bg-muted/40 border border-[#CCB88B]/40 flex items-start gap-3">
-                            <PackageCheck className="w-5 h-5 text-[#2E5E43] shrink-0 mt-0.5" />
+                        <div className="p-3.5 rounded-2xl bg-muted/40 border border-border flex items-start gap-3">
+                            <PackageCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                             <div className="space-y-0.5">
                                 <h5 className="font-bold text-xs sm:text-sm text-foreground">
                                     Physical Items Delivery Method
                                 </h5>
                                 <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
-                                    Your donated items (food, clothes, books, electronics) are automatically scheduled to be <strong>delivered in person on event day</strong> at the venue. If you need courier pickup assistance prior to the event, organizers will contact you.
+                                    Your donated items (food, clothes, books, electronics) are scheduled to be <strong>delivered in person on outreach day</strong> or coordinated with our Nairobi HQ team.
                                 </p>
                             </div>
                         </div>
                     )}
 
-                    {/* Step 5: Event Day Volunteer Activities (Only if ATTENDING) */}
+                    {/* Step 5: Volunteer Activities (Only if ATTENDING) */}
                     {attendanceType === "ATTENDING" && (
                         <div className="space-y-3 p-4 rounded-2xl bg-muted/40 border border-border">
                             <Label className="text-sm font-bold text-foreground flex items-center gap-2">
-                                <Users className="w-4 h-4 text-[#2E5E43]" />
-                                Volunteer Activities on Event Day (What would you like to do?)
+                                <Users className="w-4 h-4 text-primary" />
+                                Volunteer Activities on Outreach Day
                             </Label>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                                 {[
@@ -430,7 +709,7 @@ export default function EventDonationModal({
                                             className={cn(
                                                 "p-3 rounded-xl border text-left font-semibold flex items-center gap-2 transition-all",
                                                 active
-                                                    ? "bg-[#2E5E43] text-white border-[#2E5E43]"
+                                                    ? "bg-primary text-primary-foreground border-primary"
                                                     : "bg-card border-border text-foreground hover:bg-muted"
                                             )}
                                         >
@@ -441,7 +720,6 @@ export default function EventDonationModal({
                                 })}
                             </div>
 
-                            {/* Mingle specification */}
                             {volunteerActivities.includes("Mingle with kids") && (
                                 <div className="space-y-1.5 pt-1">
                                     <Label className="text-xs font-semibold text-foreground">
@@ -451,27 +729,26 @@ export default function EventDonationModal({
                                         value={mingleNotes}
                                         onChange={(e) => setMingleNotes(e.target.value)}
                                         placeholder="E.g., storytelling, art & craft, tutoring, singing, life skills mentorship..."
-                                        className="h-9 text-xs"
+                                        className="h-9 text-xs bg-background"
                                     />
                                 </div>
                             )}
 
-                            {/* Seek to Adopt checkbox */}
                             <div className="pt-2">
-                                <label className="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-xl border border-dashed border-[#CCB88B] bg-[#CCB88B]/10">
+                                <label className="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-xl border border-dashed border-primary/40 bg-primary/5">
                                     <input
                                         type="checkbox"
                                         checked={seekToAdopt}
                                         onChange={(e) => setSeekToAdopt(e.target.checked)}
-                                        className="mt-0.5 rounded text-[#2E5E43] focus:ring-[#2E5E43]"
+                                        className="mt-0.5 rounded text-primary focus:ring-primary"
                                     />
                                     <div>
                                         <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                            <HeartHandshake className="w-3.5 h-3.5 text-[#2E5E43]" />
+                                            <HeartHandshake className="w-3.5 h-3.5 text-primary" />
                                             Seek to Adopt (Adoption Inquiry)
                                         </p>
                                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                                            Check this box if you are open to or interested in child adoption / legal foster guardianship procedures during our visit.
+                                            Check this box if you are interested in learning about legal child adoption or foster guardianship procedures during our visit.
                                         </p>
                                     </div>
                                 </label>
@@ -487,11 +764,11 @@ export default function EventDonationModal({
                                 : "Words of Encouragement & Well Wishes"}
                         </Label>
                         <Textarea
-                            rows={3}
+                            rows={2}
                             value={wishNote}
                             onChange={(e) => setWishNote(e.target.value)}
                             placeholder="Write an encouraging message or blessing for the children, elderly, and street families..."
-                            className="resize-none text-xs sm:text-sm"
+                            className="resize-none text-xs sm:text-sm bg-background"
                         />
                     </div>
 
@@ -500,18 +777,18 @@ export default function EventDonationModal({
                         <div className="space-y-1">
                             <p className="font-bold text-foreground">Need Assistance or Custom Delivery?</p>
                             <p className="text-muted-foreground">
-                                TheVoiceOfHope Support:{" "}
-                                <a href="tel:+254798182108" className="text-[#2E5E43] dark:text-[#CCB88B] font-semibold underline">
+                                The Voice of Hope Support:{" "}
+                                <a href="tel:+254798182108" className="text-primary font-semibold underline">
                                     +254 798 182 108
                                 </a>{" "}
                                 /{" "}
-                                <a href="tel:+254798332690" className="text-[#2E5E43] dark:text-[#CCB88B] font-semibold underline">
+                                <a href="tel:+254798332690" className="text-primary font-semibold underline">
                                     +254 798 332 690
                                 </a>
                             </p>
                         </div>
                         <div className="shrink-0 flex items-center gap-1.5 text-muted-foreground">
-                            <MapPin className="w-3.5 h-3.5 text-[#CCB88B]" />
+                            <MapPin className="w-3.5 h-3.5 text-[#b8240d]" />
                             <span>HQ Nairobi, Kenya</span>
                         </div>
                     </div>
@@ -530,21 +807,25 @@ export default function EventDonationModal({
                         <Button
                             type="submit"
                             disabled={isSubmitting}
-                            className="bg-[#2E5E43] hover:bg-[#234934] text-white font-bold px-8 h-12 rounded-xl shadow-lg border border-[#CCB88B]/40 transition-all hover:scale-105"
+                            className="bg-[#b8240d] hover:bg-[#991d0a] text-white font-bold px-8 h-12 rounded-xl shadow-lg transition-all hover:scale-105"
                         >
                             {isSubmitting ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                     Processing...
                                 </>
+                            ) : selectedContributions.includes("Money") && moneyPaymentMethod === "PLEDGE" ? (
+                                initialBitAmount > 0
+                                    ? `Pledge KES ${pledgedAmount.toLocaleString()} & Pay First Bit (KES ${initialBitAmount.toLocaleString()})`
+                                    : `Confirm Pledge of KES ${pledgedAmount.toLocaleString()} (Pay in Bits)`
                             ) : selectedContributions.includes("Money") && moneyPaymentMethod === "ONLINE" && donationAmount > 0 ? (
-                                `Proceed to Donate KES ${donationAmount.toLocaleString()}`
+                                `Proceed to Checkout (KES ${donationAmount.toLocaleString()})`
                             ) : selectedContributions.includes("Money") && moneyPaymentMethod === "CASH_EVENT_DAY" ? (
-                                `Confirm Cash Pledge (KES ${donationAmount.toLocaleString()})`
+                                `Confirm Cash on Arrival (KES ${donationAmount.toLocaleString()})`
                             ) : attendanceType === "ATTENDING" ? (
-                                "Confirm Event Attendance & Presence"
+                                "Confirm Outreach Attendance"
                             ) : (
-                                "Submit Donation & Wishes"
+                                "Submit Contribution & Wishes"
                             )}
                         </Button>
                     </div>
